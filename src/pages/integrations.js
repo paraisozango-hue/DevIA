@@ -3,24 +3,41 @@ import { badge, button, icon, pageHeading, escapeHtml } from '../components/ui.j
 const integrationContent = {
   github: {
     name: 'GitHub', icon: 'github', tone: 'blue', accent: 'integration-visual--github',
-    description: 'Conecte seu repositório para permitir que a plataforma trabalhe sobre o seu código.',
-    detail: 'Seus repositórios e branches poderão ser usados como contexto do projeto. A autorização será adicionada em uma próxima etapa.',
-    capabilities: ['Acesso a repositórios', 'Branches e histórico', 'Commits sob sua aprovação'],
+    description: 'Conecte sua conta para que a DevIA possa trabalhar com seus repositórios.',
+    detail: 'A conexão ficará vinculada ao seu workspace. O token de acesso nunca será colocado no código do frontend.',
+    capabilities: ['Repositórios e branches', 'Leitura e alteração de arquivos', 'Commits sob sua aprovação'],
     action: 'connect-github', button: 'Conectar GitHub',
   },
   supabase: {
     name: 'Supabase', icon: 'database', tone: 'green', accent: 'integration-visual--supabase',
-    description: 'Conecte seu projeto Supabase para permitir futuramente que a IA trabalhe com banco de dados, tabelas, migrations e políticas.',
-    detail: 'As credenciais e permissões ficam sob seu controle. Esta demonstração não acessa nenhum projeto ou dado real.',
-    capabilities: ['Projetos e ambientes', 'Tabelas e migrations', 'Políticas sob revisão'],
+    description: 'Conecte o projeto Supabase que pertence ao seu produto.',
+    detail: 'A URL e a chave publishable podem ser persistidas como configuração pública. Chaves secretas ficam fora do frontend.',
+    capabilities: ['Projeto e ambiente', 'Tabelas e migrations', 'RLS e dados do workspace'],
     action: 'connect-supabase', button: 'Conectar Supabase',
   },
 };
 
-export function renderIntegration(provider) {
+function statusView(integration) {
+  if (!integration || integration.status !== 'connected') {
+    return badge('Desconectado', 'neutral', true) + '<span>Ainda não conectado</span>';
+  }
+  const label = integration.display_name || integration.metadata?.name || 'Conta conectada';
+  return badge('Conectado', 'green', true) + '<span>' + escapeHtml(label) + '</span>';
+}
+
+function connectionFooter(provider, integration) {
+  if (integration?.status === 'connected') {
+    return '<button class="button button--secondary" type="button" data-action="disconnect-' + provider + '">' + icon('link', 15) + '<span>Desconectar</span></button>';
+  }
+  return '<button class="button button--primary" type="button" data-action="' + integrationContent[provider].action + '">' + icon('link', 15) + '<span>' + integrationContent[provider].button + '</span>' + icon('arrow', 15) + '</button>';
+}
+
+export function renderIntegration(provider, integration = null) {
   const item = integrationContent[provider];
-  const actions = button(item.button, { iconName: 'link', action: item.action, variant: 'primary' });
-  return `${pageHeading('INTEGRAÇÕES', item.name, item.description, actions)}
-    <section class="integration-card panel"><div class="integration-card__top"><div class="integration-visual ${item.accent}">${icon(item.icon, 29)}</div><div><span class="eyebrow">ESTADO DA CONEXÃO</span><div class="integration-card__status">${badge('Desconectado', 'neutral', true)}<span>Conecte quando estiver pronto</span></div></div><span class="integration-card__badge">${icon('shield', 14)} Seguro por padrão</span></div><div class="integration-card__body"><h2>Seu código, sob seu controle.</h2><p>${escapeHtml(item.detail)}</p><div class="integration-feature-list">${item.capabilities.map((feature) => `<div>${icon('check', 15)}<span>${feature}</span></div>`).join('')}</div></div><div class="integration-card__footer"><span>${icon('sparkle', 15)} Integração real será configurada em uma próxima etapa.</span><button class="button button--primary" type="button" data-action="${item.action}">${icon('link', 15)}<span>${item.button}</span>${icon('arrow', 15)}</button></div></section>
-    <div class="integration-note">${icon('shield', 16)} Nenhuma autorização, credencial ou requisição externa será solicitada nesta demonstração.</div>`;
+  return pageHeading('INTEGRAÇÕES', item.name, item.description, null) +
+    '<section class="integration-card panel"><div class="integration-card__top"><div class="integration-visual ' + item.accent + '">' + icon(item.icon, 29) + '</div><div><span class="eyebrow">ESTADO DA CONEXÃO</span><div class="integration-card__status">' + statusView(integration) + '</div></div><span class="integration-card__badge">' + icon('shield', 14) + ' Persistente no workspace</span></div>' +
+    '<div class="integration-card__body"><h2>Seu código, sob seu controle.</h2><p>' + escapeHtml(item.detail) + '</p><div class="integration-feature-list">' + item.capabilities.map((feature) => '<div>' + icon('check', 15) + '<span>' + feature + '</span></div>').join('') + '</div>' +
+    (provider === 'github' && !integration ? '<div class="integration-note">' + icon('shield', 15) + ' A autorização do GitHub usa OAuth e precisa de uma aplicação GitHub configurada no backend; nenhum token será salvo no navegador.</div>' : '') +
+    '</div><div class="integration-card__footer"><span>' + icon('sparkle', 15) + ' A conexão permanece associada ao seu workspace.</span>' + connectionFooter(provider, integration) + '</div></section>' +
+    (provider === 'supabase' && integration?.metadata?.url ? '<div class="integration-note">' + icon('database', 16) + ' Projeto: ' + escapeHtml(integration.metadata.url) + '</div>' : '');
 }
