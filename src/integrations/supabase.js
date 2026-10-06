@@ -4,12 +4,16 @@ async function requestRoot(url = appConfig.supabase.url, publishableKey = appCon
   const response = await fetch(url.replace(/\/$/, '') + '/rest/v1/', {
     headers: {
       apikey: publishableKey,
-      Authorization: 'Bearer ' + publishableKey,
     },
   });
 
   if (!response.ok) {
-    throw new Error('Supabase respondeu com HTTP ' + response.status + '.');
+    let detail = '';
+    try {
+      const body = await response.text();
+      detail = body ? ' ' + body.slice(0, 180) : '';
+    } catch {}
+    throw new Error('Supabase respondeu com HTTP ' + response.status + '.' + detail);
   }
 
   return response;
