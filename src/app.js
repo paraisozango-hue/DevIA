@@ -127,7 +127,7 @@ async function persistSupabaseConnection(form) {
     if (submit) submit.textContent = 'Guardando conexão...';
 
     await saveIntegration(workspace.id, 'supabase', {
-      displayName: url.replace(/^https:\\/\\//, '').replace(/\\.supabase\\.co$/, ''),
+      displayName: url.replace('https://', '').replace('.supabase.co', ''),
       externalProjectId: url.split('https://')[1]?.split('.')[0] || null,
       metadata: { url, publishableKey },
     });
