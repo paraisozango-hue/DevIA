@@ -113,7 +113,7 @@ function openSupabaseConnectionDialog() {
     '<label for="integration-supabase-url">URL do projeto</label><input id="integration-supabase-url" name="url" type="url" placeholder="https://seu-projeto.supabase.co" value="' + escapeHtml(currentUrl) + '" required />' +
     '<label for="integration-supabase-key">Chave publishable</label><input id="integration-supabase-key" name="publishableKey" type="text" placeholder="sb_publishable_..." value="' + escapeHtml(currentKey) + '" required />' +
     '<div class="dialog-hint">' + icon('shield', 14) + ' A chave publishable foi feita para uso público com RLS. Nunca cole aqui uma secret/service_role key.</div>' +
-    '<button class="button button--primary dialog-form__submit" type="submit">Testar e guardar conexão ' + icon('arrow', 15) + '</button></form>';
+    '<button class="button button--primary dialog-form__submit" type="submit">Conectar o Supabase ' + icon('arrow', 15) + '</button></form>';
   showDialog({ title: 'Conectar Supabase', body, form: true });
 }
 
