@@ -1,6 +1,6 @@
 import { updateState } from './state/store.js';
 
-const routes = new Set(['/', '/projects', '/conversations', '/preview', '/github', '/supabase', '/settings']);
+const routes = new Set(['/', '/login', '/signup', '/projects', '/conversations', '/preview', '/github', '/supabase', '/settings']);
 
 export function navigate(path) {
   const nextPath = routes.has(path) ? path : '/';
