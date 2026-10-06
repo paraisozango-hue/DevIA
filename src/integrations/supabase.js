@@ -1,7 +1,7 @@
 import { appConfig } from '../config.js';
 
-async function requestRoot(url = appConfig.supabase.url, publishableKey = appConfig.supabase.publishableKey) {
-  const response = await fetch(url.replace(/\/$/, '') + '/rest/v1/', {
+async function requestProjectSettings(url = appConfig.supabase.url, publishableKey = appConfig.supabase.publishableKey) {
+  const response = await fetch(url.replace(/\/$/, '') + '/auth/v1/settings', {
     headers: {
       apikey: publishableKey,
     },
@@ -35,16 +35,19 @@ export const supabaseIntegration = Object.freeze({
       throw new Error('Use a URL HTTPS do projeto, por exemplo: https://seu-projeto.supabase.co');
     }
     if (!key) throw new Error('A chave publishable do Supabase é obrigatória.');
-    if (!/^sb_publishable_/i.test(key) && !key.includes('.')) {
-      throw new Error('Informe uma publishable key válida do Supabase.');
+    if (/^sb_secret_/i.test(key)) {
+      throw new Error('Não use uma secret key aqui. Para o navegador, use a Publishable Key (sb_publishable_...).');
     }
-    await requestRoot(normalizedUrl, key);
+    if (!/^sb_publishable_/i.test(key) && !key.includes('.')) {
+      throw new Error('Informe uma Publishable Key válida do Supabase.');
+    }
+    await requestProjectSettings(normalizedUrl, key);
     return { state: 'connected', projectUrl: normalizedUrl };
   },
 
   async getConnectionState() {
     try {
-      await requestRoot();
+      await requestProjectSettings();
       return 'connected';
     } catch {
       return 'disconnected';
@@ -52,7 +55,7 @@ export const supabaseIntegration = Object.freeze({
   },
 
   async connect() {
-    await requestRoot();
+    await requestProjectSettings();
     return {
       state: 'connected',
       projectUrl: appConfig.supabase.url,
