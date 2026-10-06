@@ -24,10 +24,7 @@ function isPublicRoute(route) {
 
 function renderPage(state) {
   const session = getSession();
-  if (!session && !isPublicRoute(state.route)) {
-    navigate('/login');
-    return renderAuthPage('login');
-  }
+  if (!session && !isPublicRoute(state.route)) return renderAuthPage('login');
   if (session && (state.route === '/login' || state.route === '/signup')) {
     navigate('/');
     return renderDashboard();
@@ -50,6 +47,17 @@ function renderPage(state) {
 function render() {
   if (!authReady) return;
   const state = getState();
+  const session = getSession();
+  if (!session && !isPublicRoute(state.route)) {
+    window.history.replaceState({}, '', '/login');
+    updateState({ route: '/login' });
+    return;
+  }
+  if (session && (state.route === '/login' || state.route === '/signup')) {
+    window.history.replaceState({}, '', '/');
+    updateState({ route: '/' });
+    return;
+  }
   app.innerHTML = renderPage(state);
   if (state.route === '/conversations') {
     const history = document.querySelector('#chat-history');
