@@ -25,23 +25,22 @@ function isPublicRoute(route) {
 function renderPage(state) {
   const session = getSession();
   if (!session && !isPublicRoute(state.route)) return renderAuthPage('login');
-  if (session && (state.route === '/login' || state.route === '/signup')) {
-    navigate('/');
-    return renderDashboard();
-  }
   if (!session && state.route === '/') return renderLanding();
   if (!session && state.route === '/signup') return renderAuthPage('signup');
   if (!session && state.route === '/login') return renderAuthPage('login');
 
+  let content;
   switch (state.route) {
-    case '/projects': return renderProjects();
-    case '/conversations': return renderConversations(state);
-    case '/preview': return renderPreview();
-    case '/github': return renderIntegration('github');
-    case '/supabase': return renderIntegration('supabase');
-    case '/settings': return renderSettings();
-    default: return renderDashboard();
+    case '/projects': content = renderProjects(); break;
+    case '/conversations': content = renderConversations(state); break;
+    case '/preview': content = renderPreview(); break;
+    case '/github': content = renderIntegration('github'); break;
+    case '/supabase': content = renderIntegration('supabase'); break;
+    case '/settings': content = renderSettings(); break;
+    default: content = renderDashboard();
   }
+
+  return renderShell(content, state);
 }
 
 function render() {
