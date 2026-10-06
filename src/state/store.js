@@ -13,6 +13,7 @@ const initialState = {
     { id: 'm2', role: 'user', text: 'Cria uma página de login moderna.', time: '10:43' },
     { id: 'm3', role: 'assistant', text: 'Entendi. Vou analisar o projeto e preparar as alterações.', time: '10:43' },
   ],
+  integrations: {},
   changedFiles: [
     { path: 'src/pages/Login.tsx', change: 'M', language: 'tsx' },
     { path: 'src/components/Button.tsx', change: 'A', language: 'tsx' },
