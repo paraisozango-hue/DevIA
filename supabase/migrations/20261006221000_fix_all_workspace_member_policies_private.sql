@@ -1,0 +1,11 @@
+-- Ensure every workspace-member RLS policy uses the private SECURITY DEFINER helper.
+alter policy "members can create conversations" on public.conversations with check (exists (select 1 from public.projects p where p.id = conversations.project_id and private.is_workspace_member(p.workspace_id)));
+alter policy "members can read conversations" on public.conversations using (exists (select 1 from public.projects p where p.id = conversations.project_id and private.is_workspace_member(p.workspace_id)));
+alter policy "members can update conversations" on public.conversations using (exists (select 1 from public.projects p where p.id = conversations.project_id and private.is_workspace_member(p.workspace_id))) with check (exists (select 1 from public.projects p where p.id = conversations.project_id and private.is_workspace_member(p.workspace_id)));
+alter policy "members can read integrations" on public.integrations using (private.is_workspace_member(workspace_id));
+alter policy "members can create messages" on public.messages with check (exists (select 1 from public.conversations c join public.projects p on p.id = c.project_id where c.id = messages.conversation_id and private.is_workspace_member(p.workspace_id)));
+alter policy "members can read messages" on public.messages using (exists (select 1 from public.conversations c join public.projects p on p.id = c.project_id where c.id = messages.conversation_id and private.is_workspace_member(p.workspace_id)));
+alter policy "members can update messages" on public.messages using (exists (select 1 from public.conversations c join public.projects p on p.id = c.project_id where c.id = messages.conversation_id and private.is_workspace_member(p.workspace_id))) with check (exists (select 1 from public.conversations c join public.projects p on p.id = c.project_id where c.id = messages.conversation_id and private.is_workspace_member(p.workspace_id)));
+alter policy "members can create projects" on public.projects with check (private.is_workspace_member(workspace_id));
+alter policy "members can read projects" on public.projects using (private.is_workspace_member(workspace_id));
+alter policy "members can update projects" on public.projects using (private.is_workspace_member(workspace_id)) with check (private.is_workspace_member(workspace_id));
