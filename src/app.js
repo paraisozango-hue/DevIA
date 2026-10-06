@@ -102,27 +102,50 @@ function openSupabaseConnectionDialog() {
   showDialog({ title: 'Conectar Supabase', body, form: true });
 }
 
-async function connectSupabase() {
-  const workspace = await getCurrentWorkspace();
-  if (!workspace) throw new Error('Workspace não encontrado. Entre novamente para inicializar o workspace.');
+function connectSupabase() {
   openSupabaseConnectionDialog();
 }
 
 async function persistSupabaseConnection(form) {
-  const values = new FormData(form);
-  const url = String(values.get('url') || '').trim().replace(/\\/$/, '');
-  const publishableKey = String(values.get('publishableKey') || '').trim();
-  const { supabaseIntegration: integration } = await import('./integrations/supabase.js');
-  const result = await integration.testConnection({ url, publishableKey });
-  const workspace = await getCurrentWorkspace();
-  await saveIntegration(workspace.id, 'supabase', {
-    displayName: url.replace(/^https:\\/\\//, '').replace(/\\.supabase\\.co$/, ''),
-    externalProjectId: url.split('https://')[1]?.split('.')[0] || null,
-    metadata: { url, publishableKey },
-  });
-  document.querySelector('.dialog-backdrop')?.remove();
-  updateState({ integrations: { ...getState().integrations, supabase: { status: 'connected', display_name: result.projectUrl.replace(/^https:\\/\\//, '').replace(/\\.supabase\\.co$/, ''), metadata: { url, publishableKey } } } });
-  showToast('Supabase conectado e guardado no workspace.', 'success');
+  const submit = form.querySelector('button[type="submit"]');
+  if (submit) {
+    submit.disabled = true;
+    submit.dataset.originalText = submit.textContent;
+    submit.textContent = 'Testando conexão...';
+  }
+
+  try {
+    const values = new FormData(form);
+    const url = String(values.get('url') || '').trim().replace(/\\/$/, '');
+    const publishableKey = String(values.get('publishableKey') || '').trim();
+    const workspace = await getCurrentWorkspace();
+    if (!workspace) throw new Error('Workspace não encontrado. Entre novamente para inicializar o workspace.');
+
+    const { supabaseIntegration: integration } = await import('./integrations/supabase.js');
+    const result = await integration.testConnection({ url, publishableKey });
+
+    if (submit) submit.textContent = 'Guardando conexão...';
+
+    await saveIntegration(workspace.id, 'supabase', {
+      displayName: url.replace(/^https:\\/\\//, '').replace(/\\.supabase\\.co$/, ''),
+      externalProjectId: url.split('https://')[1]?.split('.')[0] || null,
+      metadata: { url, publishableKey },
+    });
+
+    const persisted = (await getIntegrations(workspace.id)).find((row) => row.provider === 'supabase');
+    if (!persisted || persisted.status !== 'connected') {
+      throw new Error('A conexão foi validada, mas não foi possível confirmar a persistência no workspace.');
+    }
+
+    document.querySelector('.dialog-backdrop')?.remove();
+    updateState({ integrations: { ...getState().integrations, supabase: persisted } });
+    showToast('Supabase conectado, validado e guardado no workspace.', 'success');
+  } finally {
+    if (submit) {
+      submit.disabled = false;
+      submit.textContent = submit.dataset.originalText || 'Testar e guardar conexão';
+    }
+  }
 }
 
 function connectGithub() {
