@@ -135,7 +135,12 @@ async function submitAuth(form) {
     render();
     showToast(mode === 'signup' ? 'Conta criada e workspace preparado.' : 'Login efetuado com sucesso.', 'success');
   } catch (error) {
-    showToast(error.message || 'Não foi possível concluir a operação.', 'info');
+    const message = error.message || 'Não foi possível concluir a operação.';
+    if (mode === 'signup' && /email address not authorized|email.*not authorized/i.test(message)) {
+      showToast('O Supabase recusou o envio de confirmação para este e-mail. O SMTP padrão só envia para endereços autorizados do projeto.', 'info');
+    } else {
+      showToast(message, 'info');
+    }
   } finally {
     if (submit) {
       submit.disabled = false;
