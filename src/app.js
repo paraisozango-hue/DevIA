@@ -14,6 +14,7 @@ import { requestAssistantReply } from './services/chat-service.js';
 import { supabaseIntegration } from './integrations/supabase.js';
 import { getSession, signIn, signUp, signOut, createInitialWorkspace, getCurrentWorkspace, getIntegrations, saveIntegration, disconnectIntegration, refreshSession } from './integrations/auth.js';
 import { showDialog, showToast, icon, escapeHtml } from './components/ui.js';
+import { appConfig } from './config.js';
 
 const app = document.querySelector('#app');
 let authReady = false;
@@ -163,12 +164,29 @@ async function persistSupabaseConnection(form) {
   }
 }
 
-function connectGithub() {
-  showDialog({
-    title: 'Conectar GitHub',
-    body: '<p class="dialog-copy">A conexão real será feita por OAuth no backend da DevIA. O token não ficará no navegador nem no código do projeto.</p><p class="dialog-copy">Para ativar esta etapa, precisamos configurar a aplicação OAuth/GitHub App da DevIA e as credenciais secretas no backend. Depois disso, este botão iniciará a autorização normalmente.</p>',
-    confirmLabel: 'Entendi',
+async function connectGithub() {
+  const session = getSession();
+  if (!session?.access_token) throw new Error('Entre na DevIA antes de conectar o GitHub.');
+
+  const workspace = await getCurrentWorkspace();
+  if (!workspace) throw new Error('Workspace não encontrado.');
+
+  const response = await fetch(appConfig.github.oauthStartUrl, {
+    method: 'POST',
+    headers: {
+      apikey: appConfig.supabase.publishableKey,
+      Authorization: 'Bearer ' + session.access_token,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ workspaceId: workspace.id }),
   });
+
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || !body.authorizationUrl) {
+    throw new Error(body.message || 'Não foi possível iniciar a conexão com o GitHub.');
+  }
+
+  window.location.assign(body.authorizationUrl);
 }
 
 async function loadPersistedIntegrations() {
@@ -257,6 +275,18 @@ subscribe(render);
     await loadPersistedIntegrations().catch(() => null);
   }
 
+  const githubResult = new URLSearchParams(window.location.search).get('github');
+  const githubReason = new URLSearchParams(window.location.search).get('reason');
+  if (githubResult) {
+    window.history.replaceState({}, '', '/github');
+    if (githubResult === 'connected') {
+      await loadPersistedIntegrations().catch(() => null);
+      showToast('GitHub conectado ao workspace com sucesso.', 'success');
+    } else {
+      showToast(githubReason || 'Não foi possível concluir a conexão com o GitHub.', 'info');
+    }
+  }
+
   render();
 })();
 
@@ -276,7 +306,7 @@ document.addEventListener('click', async (event) => {
     showToast('Painel de demonstração limpo. Nenhum arquivo foi alterado.');
   }
   if (action === 'connect-supabase') connectSupabase().catch((error) => showToast(error.message || 'Não foi possível iniciar a conexão.', 'info'));
-  if (action === 'connect-github') connectGithub();
+  if (action === 'connect-github') connectGithub().catch((error) => showToast(error.message || 'Não foi possível iniciar a conexão com o GitHub.', 'info'));
   if (action === 'disconnect-supabase') disconnectIntegration(getState().integrations.supabase?.workspace_id, 'supabase').then(() => { updateState({ integrations: { ...getState().integrations, supabase: null } }); showToast('Supabase desconectado.'); }).catch((error) => showToast(error.message || 'Não foi possível desconectar.', 'info'));
   if (action === 'disconnect-github') showToast('A desconexão do GitHub será ligada ao fluxo OAuth seguro.', 'info');
   if (action === 'logout') {
