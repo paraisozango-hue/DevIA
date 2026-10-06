@@ -224,7 +224,7 @@ document.addEventListener('click', async (event) => {
   }
   if (action === 'connect-supabase') connectSupabase().catch((error) => showToast(error.message || 'Não foi possível iniciar a conexão.', 'info'));
   if (action === 'connect-github') connectGithub();
-  if (action === 'disconnect-supabase') disconnectIntegration(getState().integrations.supabase?.workspace_id, 'supabase').catch(() => {});
+  if (action === 'disconnect-supabase') disconnectIntegration(getState().integrations.supabase?.workspace_id, 'supabase').then(() => { updateState({ integrations: { ...getState().integrations, supabase: null } }); showToast('Supabase desconectado.'); }).catch((error) => showToast(error.message || 'Não foi possível desconectar.', 'info'));
   if (action === 'disconnect-github') showToast('A desconexão do GitHub será ligada ao fluxo OAuth seguro.', 'info');
   if (action === 'logout') {
     try {
