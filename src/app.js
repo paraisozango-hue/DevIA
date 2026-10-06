@@ -275,10 +275,16 @@ subscribe(render);
     await loadPersistedIntegrations().catch(() => null);
   }
 
-  const githubResult = new URLSearchParams(window.location.search).get('github');
-  const githubReason = new URLSearchParams(window.location.search).get('reason');
+  const callbackParams = new URLSearchParams(window.location.search);
+  const githubResult = callbackParams.get('github');
+  const githubReason = callbackParams.get('reason');
   if (githubResult) {
-    window.history.replaceState({}, '', '/github');
+    callbackParams.delete('github');
+    callbackParams.delete('reason');
+    const cleanQuery = callbackParams.toString();
+    const cleanRootUrl = '/' + (cleanQuery ? '?' + cleanQuery : '');
+    window.history.replaceState({}, '', cleanRootUrl);
+    navigate('/github');
     if (githubResult === 'connected') {
       await loadPersistedIntegrations().catch(() => null);
       showToast('GitHub conectado ao workspace com sucesso.', 'success');
