@@ -18,13 +18,23 @@ import { showDialog, showToast, icon, escapeHtml } from './components/ui.js';
 const app = document.querySelector('#app');
 let authReady = false;
 
+const PUBLIC_ROUTES = new Set(['/', '/login', '/signup']);
+const PROTECTED_ROUTES = new Set(['/projects', '/conversations', '/preview', '/github', '/supabase', '/settings']);
+
 function isPublicRoute(route) {
-  return route === '/' || route === '/login' || route === '/signup';
+  return PUBLIC_ROUTES.has(route);
+}
+
+function isProtectedRoute(route) {
+  return PROTECTED_ROUTES.has(route);
 }
 
 function renderPage(state) {
   const session = getSession();
-  if (!session && !isPublicRoute(state.route)) return renderAuthPage('login');
+  // A raiz é sempre a porta de entrada pública. O formulário de login só aparece
+  // quando a pessoa acessa explicitamente /login ou tenta entrar numa rota protegida.
+  if (!session && isProtectedRoute(state.route)) return renderAuthPage('login');
+  if (!session && !isPublicRoute(state.route)) return renderLanding();
   if (!session && state.route === '/') return renderLanding();
   if (!session && state.route === '/signup') return renderAuthPage('signup');
   if (!session && state.route === '/login') return renderAuthPage('login');
@@ -47,9 +57,14 @@ function render() {
   if (!authReady) return;
   const state = getState();
   const session = getSession();
-  if (!session && !isPublicRoute(state.route)) {
+  if (!session && isProtectedRoute(state.route)) {
     window.history.replaceState({}, '', '/login');
     updateState({ route: '/login' });
+    return;
+  }
+  if (!session && !isPublicRoute(state.route)) {
+    window.history.replaceState({}, '', '/');
+    updateState({ route: '/' });
     return;
   }
   if (session && (state.route === '/login' || state.route === '/signup')) {
