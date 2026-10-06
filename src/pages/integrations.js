@@ -11,7 +11,7 @@ const integrationContent = {
   supabase: {
     name: 'Supabase', icon: 'database', tone: 'green', accent: 'integration-visual--supabase',
     description: 'Conecte o projeto Supabase que pertence ao seu produto.',
-    detail: 'A URL e a chave publishable podem ser persistidas como configuração pública. Chaves secretas ficam fora do frontend.',
+    detail: 'Informe a URL e a chave publishable do projeto. A DevIA testa a conexão antes de guardar o vínculo no seu workspace.',
     capabilities: ['Projeto e ambiente', 'Tabelas e migrations', 'RLS e dados do workspace'],
     action: 'connect-supabase', button: 'Conectar Supabase',
   },
@@ -39,5 +39,5 @@ export function renderIntegration(provider, integration = null) {
     '<div class="integration-card__body"><h2>Seu código, sob seu controle.</h2><p>' + escapeHtml(item.detail) + '</p><div class="integration-feature-list">' + item.capabilities.map((feature) => '<div>' + icon('check', 15) + '<span>' + feature + '</span></div>').join('') + '</div>' +
     (provider === 'github' && !integration ? '<div class="integration-note">' + icon('shield', 15) + ' A autorização do GitHub usa OAuth e precisa de uma aplicação GitHub configurada no backend; nenhum token será salvo no navegador.</div>' : '') +
     '</div><div class="integration-card__footer"><span>' + icon('sparkle', 15) + ' A conexão permanece associada ao seu workspace.</span>' + connectionFooter(provider, integration) + '</div></section>' +
-    (provider === 'supabase' && integration?.metadata?.url ? '<div class="integration-note">' + icon('database', 16) + ' Projeto: ' + escapeHtml(integration.metadata.url) + '</div>' : '');
+    (provider === 'supabase' && integration?.metadata?.url ? '<div class="integration-note">' + icon('database', 16) + ' Projeto conectado: ' + escapeHtml(integration.metadata.url) + '</div>' : '');
 }
