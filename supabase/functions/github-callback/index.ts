@@ -69,7 +69,10 @@ async function githubRequest(path: string, token: string) {
 }
 
 function redirect(params: Record<string, string>) {
-  const url = new URL(APP_URL + '/github');
+  // O hosting da DevIA serve a SPA de forma garantida na raiz, mas pode
+  // devolver 404 quando o navegador entra diretamente em uma rota profunda.
+  // O callback volta para "/" e o frontend navega para /github sem recarregar.
+  const url = new URL(APP_URL + '/');
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
   return Response.redirect(url.toString(), 302);
 }
