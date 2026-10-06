@@ -9,6 +9,7 @@ import { renderSettings } from './pages/settings.js';
 import { getState, subscribe, updateState, addMessage, resetChangedFiles } from './state/store.js';
 import { createDemoProject } from './services/project-service.js';
 import { requestAssistantReply } from './services/chat-service.js';
+import { supabaseIntegration } from './integrations/supabase.js';
 import { showDialog, showToast, icon, escapeHtml } from './components/ui.js';
 import { navigate } from './router.js';
 
@@ -61,6 +62,15 @@ function submitChat(form) {
   }).finally(() => updateState({ isProcessing: false }));
 }
 
+async function connectSupabase() {
+  try {
+    await supabaseIntegration.connect();
+    showToast('Supabase conectado com sucesso.', 'success');
+  } catch (error) {
+    showToast(error.message || 'Não foi possível conectar ao Supabase.', 'info');
+  }
+}
+
 bindRouter();
 subscribe(render);
 render();
@@ -80,7 +90,8 @@ document.addEventListener('click', (event) => {
     resetChangedFiles();
     showToast('Painel de demonstração limpo. Nenhum arquivo foi alterado.');
   }
-  if (action === 'connect-github' || action === 'connect-supabase') showToast('Conexão real ainda não está ativa neste scaffold.', 'info');
+  if (action === 'connect-supabase') connectSupabase();
+  if (action === 'connect-github') showToast('O GitHub do workspace ainda não possui OAuth/App próprio. A conexão GitHub usada pelo desenvolvimento desta base está ativa no ambiente do assistente.', 'info');
   if (action === 'refresh-preview') {
     trigger.classList.add('is-spinning');
     window.setTimeout(() => trigger.classList.remove('is-spinning'), 700);
