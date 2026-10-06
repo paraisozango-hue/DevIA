@@ -131,3 +131,51 @@ export async function createInitialWorkspace(fullName = '') {
   });
   return created[0];
 }
+
+
+export async function getCurrentWorkspace() {
+  const user = getUser();
+  if (!user) throw new Error('Usuário não autenticado.');
+  const rows = await dataApi(
+    'workspaces?select=id,name,slug,created_at,updated_at&owner_id=eq.' + encodeURIComponent(user.id) + '&limit=1'
+  );
+  return rows[0] || null;
+}
+
+export async function getIntegrations(workspaceId) {
+  if (!workspaceId) return [];
+  return dataApi(
+    'integrations?select=id,provider,status,display_name,external_account_id,external_project_id,metadata,connected_at,created_at,updated_at&workspace_id=eq.' +
+    encodeURIComponent(workspaceId) + '&order=provider.asc'
+  );
+}
+
+export async function saveIntegration(workspaceId, provider, payload = {}) {
+  if (!workspaceId) throw new Error('Workspace não encontrado.');
+  if (!['github', 'supabase'].includes(provider)) throw new Error('Integração inválida.');
+
+  const body = {
+    workspace_id: workspaceId,
+    provider,
+    status: payload.status || 'connected',
+    display_name: payload.displayName || null,
+    external_account_id: payload.externalAccountId || null,
+    external_project_id: payload.externalProjectId || null,
+    metadata: payload.metadata || {},
+    connected_at: payload.status === 'disconnected' ? null : (payload.connectedAt || new Date().toISOString()),
+  };
+
+  return dataApi('integrations?on_conflict=workspace_id,provider', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function disconnectIntegration(workspaceId, provider) {
+  if (!workspaceId) throw new Error('Workspace não encontrado.');
+  return dataApi(
+    'integrations?workspace_id=eq.' + encodeURIComponent(workspaceId) + '&provider=eq.' + encodeURIComponent(provider),
+    { method: 'DELETE' }
+  );
+}
