@@ -45,7 +45,8 @@ export function getUser() {
 }
 
 export async function signUp({ email, password, fullName }) {
-  const data = await request('signup', {
+  const redirectTo = window.location.origin + '/login?confirmed=1';
+  const data = await request('signup?redirect_to=' + encodeURIComponent(redirectTo), {
     method: 'POST',
     body: JSON.stringify({ email, password, data: { full_name: fullName } }),
   });
