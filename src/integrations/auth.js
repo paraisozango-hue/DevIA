@@ -145,7 +145,7 @@ export async function getCurrentWorkspace() {
 export async function getIntegrations(workspaceId) {
   if (!workspaceId) return [];
   return dataApi(
-    'integrations?select=id,provider,status,display_name,external_account_id,external_project_id,metadata,connected_at,created_at,updated_at&workspace_id=eq.' +
+    'integrations?select=id,workspace_id,provider,status,display_name,external_account_id,external_project_id,metadata,connected_at,created_at,updated_at&workspace_id=eq.' +
     encodeURIComponent(workspaceId) + '&order=provider.asc'
   );
 }
