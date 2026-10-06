@@ -102,7 +102,7 @@ function openSupabaseConnectionDialog() {
   showDialog({ title: 'Conectar Supabase', body, form: true });
 }
 
-function connectSupabase() {
+async function connectSupabase() {
   openSupabaseConnectionDialog();
 }
 
@@ -116,7 +116,7 @@ async function persistSupabaseConnection(form) {
 
   try {
     const values = new FormData(form);
-    const url = String(values.get('url') || '').trim().replace(/\\/$/, '');
+    const url = String(values.get('url') || '').trim().replace(/\/$/, '');
     const publishableKey = String(values.get('publishableKey') || '').trim();
     const workspace = await getCurrentWorkspace();
     if (!workspace) throw new Error('Workspace não encontrado. Entre novamente para inicializar o workspace.');
