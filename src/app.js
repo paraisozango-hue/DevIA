@@ -217,16 +217,31 @@ bindRouter();
 subscribe(render);
 
 (async function initializeAuth() {
-  await refreshSession();
+  try {
+    await refreshSession();
+  } catch {
+    // Uma falha de refresh não pode impedir a aplicação de renderizar a tela pública/login.
+  }
+
   authReady = true;
   const session = getSession();
   const currentRoute = getState().route;
+
   if (session && (currentRoute === '/login' || currentRoute === '/signup')) {
     window.history.replaceState({}, '', '/');
     updateState({ route: '/' });
   }
-  await createInitialWorkspace(session.user?.user_metadata?.full_name || session.user?.email?.split('@')[0] || 'Meu workspace').catch(() => null);
-  await loadPersistedIntegrations().catch(() => null);
+
+  if (session) {
+    await createInitialWorkspace(
+      session.user?.user_metadata?.full_name ||
+      session.user?.email?.split('@')[0] ||
+      'Meu workspace'
+    ).catch(() => null);
+
+    await loadPersistedIntegrations().catch(() => null);
+  }
+
   render();
 })();
 
