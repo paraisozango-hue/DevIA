@@ -5,5 +5,8 @@ export const appConfig = Object.freeze({
   },
   github: {
     repository: 'paraisozango-hue/DevIA',
+    appSlug: 'devia-developer',
+    oauthStartUrl: 'https://reajamnjltasockpqkrk.supabase.co/functions/v1/github-start',
+    oauthCallbackUrl: 'https://reajamnjltasockpqkrk.supabase.co/functions/v1/github-callback',
   },
 });
