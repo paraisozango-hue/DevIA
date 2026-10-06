@@ -1,4 +1,4 @@
-import { bindRouter } from './router.js';
+import { bindRouter, navigate } from './router.js';
 import { renderShell } from './layout.js';
 import { renderDashboard } from './pages/dashboard.js';
 import { renderProjects } from './pages/projects.js';
@@ -6,16 +6,36 @@ import { renderConversations } from './pages/conversations.js';
 import { renderPreview } from './pages/preview.js';
 import { renderIntegration } from './pages/integrations.js';
 import { renderSettings } from './pages/settings.js';
+import { renderAuthPage } from './pages/auth.js';
+import { renderLanding } from './pages/landing.js';
 import { getState, subscribe, updateState, addMessage, resetChangedFiles } from './state/store.js';
 import { createDemoProject } from './services/project-service.js';
 import { requestAssistantReply } from './services/chat-service.js';
 import { supabaseIntegration } from './integrations/supabase.js';
+import { getSession, signIn, signUp, signOut, createInitialWorkspace, refreshSession } from './integrations/auth.js';
 import { showDialog, showToast, icon, escapeHtml } from './components/ui.js';
-import { navigate } from './router.js';
 
 const app = document.querySelector('#app');
+let authReady = false;
+
+function isPublicRoute(route) {
+  return route === '/' || route === '/login' || route === '/signup';
+}
 
 function renderPage(state) {
+  const session = getSession();
+  if (!session && !isPublicRoute(state.route)) {
+    navigate('/login');
+    return renderAuthPage('login');
+  }
+  if (session && (state.route === '/login' || state.route === '/signup')) {
+    navigate('/');
+    return renderDashboard();
+  }
+  if (!session && state.route === '/') return renderLanding();
+  if (!session && state.route === '/signup') return renderAuthPage('signup');
+  if (!session && state.route === '/login') return renderAuthPage('login');
+
   switch (state.route) {
     case '/projects': return renderProjects();
     case '/conversations': return renderConversations(state);
@@ -28,8 +48,9 @@ function renderPage(state) {
 }
 
 function render() {
+  if (!authReady) return;
   const state = getState();
-  app.innerHTML = renderShell(renderPage(state), state);
+  app.innerHTML = renderPage(state);
   if (state.route === '/conversations') {
     const history = document.querySelector('#chat-history');
     if (history) history.scrollTop = history.scrollHeight;
@@ -37,13 +58,13 @@ function render() {
 }
 
 function openNewProjectDialog() {
-  const body = `<form id="new-project-form" class="dialog-form"><label for="new-project-name">Nome do projeto</label><input id="new-project-name" name="name" maxlength="48" placeholder="Ex.: Aurora Studio" required autofocus /><label for="new-project-description">Descrição <span>Opcional</span></label><textarea id="new-project-description" name="description" maxlength="140" rows="3" placeholder="O que você quer construir?"></textarea><div class="dialog-hint">${icon('sparkle', 14)} Este projeto ficará disponível nesta sessão de demonstração.</div><button class="button button--primary dialog-form__submit" type="submit">Criar projeto ${icon('arrow', 15)}</button></form>`;
+  const body = '<form id="new-project-form" class="dialog-form"><label for="new-project-name">Nome do projeto</label><input id="new-project-name" name="name" maxlength="48" placeholder="Ex.: Aurora Studio" required autofocus /><label for="new-project-description">Descrição <span>Opcional</span></label><textarea id="new-project-description" name="description" maxlength="140" rows="3" placeholder="O que você quer construir?"></textarea><div class="dialog-hint">' + icon('sparkle', 14) + ' Este projeto ficará disponível nesta sessão de demonstração.</div><button class="button button--primary dialog-form__submit" type="submit">Criar projeto ' + icon('arrow', 15) + '</button></form>';
   showDialog({ title: 'Criar projeto', body, form: true });
   window.setTimeout(() => document.querySelector('#new-project-name')?.focus(), 0);
 }
 
 function openChangesDialog() {
-  const body = `<p class="dialog-copy">Uma visualização fictícia de como as alterações poderão aparecer. Nenhum Git diff está sendo calculado.</p><div class="mock-diff"><div><span>src/pages/Login.tsx</span><small>+ 12 linhas</small></div><pre><span class="diff-add">+ export function LoginPage() {</span>\n<span class="diff-add">+   return &lt;main&gt;Entre na sua conta&lt;/main&gt;;</span>\n<span class="diff-add">+ }</span></pre><div><span>src/styles/global.css</span><small>+ 8 linhas</small></div><pre><span class="diff-add">+ .login-panel {</span>\n<span class="diff-add">+   border-radius: 20px;</span>\n<span class="diff-add">+ }</span></pre></div>`;
+  const body = '<p class="dialog-copy">Uma visualização fictícia de como as alterações poderão aparecer. Nenhum Git diff está sendo calculado.</p><div class="mock-diff"><div><span>src/pages/Login.tsx</span><small>+ 12 linhas</small></div><pre><span class="diff-add">+ export function LoginPage() {</span>\n<span class="diff-add">+   return &lt;main&gt;Entre na sua conta&lt;/main&gt;;</span>\n<span class="diff-add">+ }</span></pre></div>';
   showDialog({ title: 'Alterações demonstrativas', body, confirmLabel: 'Entendi' });
 }
 
@@ -55,10 +76,10 @@ function submitChat(form) {
   const input = form.querySelector('[name="message"]');
   const text = input?.value.trim();
   if (!text || getState().isProcessing) return;
-  addMessage({ id: `message-${Date.now()}`, role: 'user', text, time: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date()) });
+  addMessage({ id: 'message-' + Date.now(), role: 'user', text, time: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date()) });
   updateState({ isProcessing: true });
   requestAssistantReply().then((reply) => {
-    addMessage({ id: `message-${Date.now()}-reply`, role: 'assistant', text: reply, time: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date()) });
+    addMessage({ id: 'message-' + Date.now() + '-reply', role: 'assistant', text: reply, time: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date()) });
   }).finally(() => updateState({ isProcessing: false }));
 }
 
@@ -71,11 +92,66 @@ async function connectSupabase() {
   }
 }
 
+async function submitAuth(form) {
+  const values = new FormData(form);
+  const mode = form.dataset.mode;
+  const email = String(values.get('email') || '').trim();
+  const password = String(values.get('password') || '');
+  const fullName = String(values.get('name') || '').trim();
+
+  if (mode === 'signup' && password !== String(values.get('passwordConfirm') || '')) {
+    showToast('As senhas não coincidem.', 'info');
+    return;
+  }
+
+  const submit = form.querySelector('button[type="submit"]');
+  if (submit) {
+    submit.disabled = true;
+    submit.dataset.originalText = submit.textContent;
+    submit.textContent = mode === 'signup' ? 'Criando conta...' : 'Entrando...';
+  }
+
+  try {
+    const result = mode === 'signup'
+      ? await signUp({ email, password, fullName })
+      : await signIn({ email, password });
+
+    if (!result.session) {
+      showToast('Conta criada. Verifica o teu e-mail para confirmar a conta e depois entra na DevIA.', 'success');
+      return;
+    }
+
+    await createInitialWorkspace(fullName);
+    updateState({ route: '/' });
+    window.history.replaceState({}, '', '/');
+    render();
+    showToast(mode === 'signup' ? 'Conta criada e workspace preparado.' : 'Login efetuado com sucesso.', 'success');
+  } catch (error) {
+    showToast(error.message || 'Não foi possível concluir a operação.', 'info');
+  } finally {
+    if (submit) {
+      submit.disabled = false;
+      submit.textContent = submit.dataset.originalText || (mode === 'signup' ? 'Criar minha conta' : 'Entrar');
+    }
+  }
+}
+
 bindRouter();
 subscribe(render);
-render();
 
-document.addEventListener('click', (event) => {
+(async function initializeAuth() {
+  await refreshSession();
+  authReady = true;
+  const session = getSession();
+  const currentRoute = getState().route;
+  if (session && (currentRoute === '/login' || currentRoute === '/signup')) {
+    window.history.replaceState({}, '', '/');
+    updateState({ route: '/' });
+  }
+  render();
+})();
+
+document.addEventListener('click', async (event) => {
   const trigger = event.target.closest('[data-action]');
   if (!trigger) return;
   const action = trigger.dataset.action;
@@ -91,19 +167,34 @@ document.addEventListener('click', (event) => {
     showToast('Painel de demonstração limpo. Nenhum arquivo foi alterado.');
   }
   if (action === 'connect-supabase') connectSupabase();
-  if (action === 'connect-github') showToast('O GitHub do workspace ainda não possui OAuth/App próprio. A conexão GitHub usada pelo desenvolvimento desta base está ativa no ambiente do assistente.', 'info');
+  if (action === 'connect-github') showToast('O GitHub do workspace ainda não possui OAuth/App próprio. Vamos ligar essa etapa depois do Auth.', 'info');
+  if (action === 'logout') {
+    try {
+      await signOut();
+      window.history.replaceState({}, '', '/');
+      updateState({ route: '/' });
+      render();
+      showToast('Sessão encerrada.');
+    } catch (error) {
+      showToast(error.message || 'Não foi possível encerrar a sessão.', 'info');
+    }
+  }
   if (action === 'refresh-preview') {
     trigger.classList.add('is-spinning');
     window.setTimeout(() => trigger.classList.remove('is-spinning'), 700);
     showToast('Preview demonstrativo atualizado.');
   }
   if (action === 'open-demo') window.open('/preview-demo.html', '_blank', 'noopener,noreferrer');
-  if (action === 'show-help') showDialog({ title: 'Este é o início.', body: '<p class="dialog-copy">A DevIA está no modo de demonstração. Navegue pelo menu para explorar as telas e os pontos preparados para integrações futuras.</p>', confirmLabel: 'Explorar' });
-  if (action === 'show-chat-info') showDialog({ title: 'Contexto da conversa', body: '<p class="dialog-copy">Esta conversa usa mensagens locais de exemplo. Nenhum agente de IA, serviço remoto ou histórico persistente está conectado.</p>', confirmLabel: 'Entendi' });
+  if (action === 'show-help') showDialog({ title: 'Este é o início.', body: '<p class="dialog-copy">A DevIA agora possui cadastro e login reais através do Supabase Auth. O próximo passo será conectar o GitHub por workspace.</p>', confirmLabel: 'Entendi' });
+  if (action === 'show-chat-info') showDialog({ title: 'Contexto da conversa', body: '<p class="dialog-copy">Esta conversa ainda usa mensagens locais de exemplo. A persistência real virá na próxima etapa.</p>', confirmLabel: 'Entendi' });
 });
 
 document.addEventListener('submit', (event) => {
   const form = event.target;
+  if (form.matches('[data-form="auth"]')) {
+    event.preventDefault();
+    submitAuth(form);
+  }
   if (form.matches('[data-form="chat"]')) {
     event.preventDefault();
     submitChat(form);
@@ -115,7 +206,7 @@ document.addEventListener('submit', (event) => {
       const project = createDemoProject(String(values.get('name') || ''), String(values.get('description') || ''));
       document.querySelector('.dialog-backdrop')?.remove();
       navigate('/projects');
-      showToast(`${escapeHtml(project.name)} foi adicionado nesta sessão.`);
+      showToast(escapeHtml(project.name) + ' foi adicionado nesta sessão.');
     } catch (error) {
       showToast(error.message, 'info');
     }
