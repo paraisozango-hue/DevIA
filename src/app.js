@@ -158,7 +158,7 @@ async function persistSupabaseConnection(form) {
   } finally {
     if (submit) {
       submit.disabled = false;
-      submit.textContent = submit.dataset.originalText || 'Testar e guardar conexão';
+      submit.textContent = submit.dataset.originalText || 'Conectar o Supabase';
     }
   }
 }
