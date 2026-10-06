@@ -89,7 +89,8 @@ create index if not exists integrations_external_account_id_idx on public.integr
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
-as $$
+set search_path = public
+as $
 begin
   new.updated_at = now();
   return new;
@@ -113,7 +114,8 @@ returns boolean
 language sql
 stable
 security invoker
-as $$
+set search_path = public
+as $
   select exists (
     select 1 from public.workspace_members wm
     where wm.workspace_id = target_workspace_id
