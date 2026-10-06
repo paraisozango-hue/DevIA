@@ -30,5 +30,9 @@ as $$
   );
 $$;
 
-revoke execute on function public.is_workspace_member(uuid) from public, anon, authenticated;
-revoke execute on function public.is_workspace_admin(uuid) from public, anon, authenticated;
+-- RLS policies execute these helpers as the authenticated role.
+-- Keep anonymous execution blocked while granting the minimum required role.
+grant execute on function public.is_workspace_member(uuid) to authenticated;
+grant execute on function public.is_workspace_admin(uuid) to authenticated;
+revoke execute on function public.is_workspace_member(uuid) from anon;
+revoke execute on function public.is_workspace_admin(uuid) from anon;
