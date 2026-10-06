@@ -12,7 +12,7 @@ import { getState, subscribe, updateState, addMessage, resetChangedFiles } from 
 import { createDemoProject } from './services/project-service.js';
 import { requestAssistantReply } from './services/chat-service.js';
 import { supabaseIntegration } from './integrations/supabase.js';
-import { getSession, signIn, signUp, signOut, createInitialWorkspace, refreshSession } from './integrations/auth.js';
+import { getSession, signIn, signUp, signOut, createInitialWorkspace, getCurrentWorkspace, getIntegrations, saveIntegration, disconnectIntegration, refreshSession } from './integrations/auth.js';
 import { showDialog, showToast, icon, escapeHtml } from './components/ui.js';
 
 const app = document.querySelector('#app');
@@ -34,8 +34,8 @@ function renderPage(state) {
     case '/projects': content = renderProjects(); break;
     case '/conversations': content = renderConversations(state); break;
     case '/preview': content = renderPreview(); break;
-    case '/github': content = renderIntegration('github'); break;
-    case '/supabase': content = renderIntegration('supabase'); break;
+    case '/github': content = renderIntegration('github', state.integrations.github); break;
+    case '/supabase': content = renderIntegration('supabase', state.integrations.supabase); break;
     case '/settings': content = renderSettings(); break;
     default: content = renderDashboard();
   }
@@ -90,13 +90,55 @@ function submitChat(form) {
   }).finally(() => updateState({ isProcessing: false }));
 }
 
+function openSupabaseConnectionDialog() {
+  const existing = getState().integrations.supabase;
+  const currentUrl = existing?.metadata?.url || '';
+  const currentKey = existing?.metadata?.publishableKey || '';
+  const body = '<form id="supabase-connection-form" class="dialog-form">' +
+    '<label for="integration-supabase-url">URL do projeto</label><input id="integration-supabase-url" name="url" type="url" placeholder="https://seu-projeto.supabase.co" value="' + escapeHtml(currentUrl) + '" required />' +
+    '<label for="integration-supabase-key">Chave publishable</label><input id="integration-supabase-key" name="publishableKey" type="text" placeholder="sb_publishable_..." value="' + escapeHtml(currentKey) + '" required />' +
+    '<div class="dialog-hint">' + icon('shield', 14) + ' A chave publishable foi feita para uso público com RLS. Nunca cole aqui uma secret/service_role key.</div>' +
+    '<button class="button button--primary dialog-form__submit" type="submit">Testar e guardar conexão ' + icon('arrow', 15) + '</button></form>';
+  showDialog({ title: 'Conectar Supabase', body, form: true });
+}
+
 async function connectSupabase() {
-  try {
-    await supabaseIntegration.connect();
-    showToast('Supabase conectado com sucesso.', 'success');
-  } catch (error) {
-    showToast(error.message || 'Não foi possível conectar ao Supabase.', 'info');
-  }
+  const workspace = await getCurrentWorkspace();
+  if (!workspace) throw new Error('Workspace não encontrado. Entre novamente para inicializar o workspace.');
+  openSupabaseConnectionDialog();
+}
+
+async function persistSupabaseConnection(form) {
+  const values = new FormData(form);
+  const url = String(values.get('url') || '').trim().replace(/\\/$/, '');
+  const publishableKey = String(values.get('publishableKey') || '').trim();
+  const { supabaseIntegration: integration } = await import('./integrations/supabase.js');
+  const result = await integration.testConnection({ url, publishableKey });
+  const workspace = await getCurrentWorkspace();
+  await saveIntegration(workspace.id, 'supabase', {
+    displayName: url.replace(/^https:\\/\\//, '').replace(/\\.supabase\\.co$/, ''),
+    externalProjectId: url.split('https://')[1]?.split('.')[0] || null,
+    metadata: { url, publishableKey },
+  });
+  document.querySelector('.dialog-backdrop')?.remove();
+  updateState({ integrations: { ...getState().integrations, supabase: { status: 'connected', display_name: result.projectUrl.replace(/^https:\\/\\//, '').replace(/\\.supabase\\.co$/, ''), metadata: { url, publishableKey } } } });
+  showToast('Supabase conectado e guardado no workspace.', 'success');
+}
+
+function connectGithub() {
+  showDialog({
+    title: 'Conectar GitHub',
+    body: '<p class="dialog-copy">A conexão real será feita por OAuth no backend da DevIA. O token não ficará no navegador nem no código do projeto.</p><p class="dialog-copy">Para ativar esta etapa, precisamos configurar a aplicação OAuth/GitHub App da DevIA e as credenciais secretas no backend. Depois disso, este botão iniciará a autorização normalmente.</p>',
+    confirmLabel: 'Entendi',
+  });
+}
+
+async function loadPersistedIntegrations() {
+  const workspace = await getCurrentWorkspace();
+  if (!workspace) return;
+  const rows = await getIntegrations(workspace.id);
+  const integrations = Object.fromEntries(rows.map((row) => [row.provider, row]));
+  updateState({ integrations });
 }
 
 async function submitAuth(form) {
@@ -160,6 +202,8 @@ subscribe(render);
     window.history.replaceState({}, '', '/');
     updateState({ route: '/' });
   }
+  await createInitialWorkspace(session.user?.user_metadata?.full_name || session.user?.email?.split('@')[0] || 'Meu workspace').catch(() => null);
+  await loadPersistedIntegrations().catch(() => null);
   render();
 })();
 
@@ -178,8 +222,10 @@ document.addEventListener('click', async (event) => {
     resetChangedFiles();
     showToast('Painel de demonstração limpo. Nenhum arquivo foi alterado.');
   }
-  if (action === 'connect-supabase') connectSupabase();
-  if (action === 'connect-github') showToast('O GitHub do workspace ainda não possui OAuth/App próprio. Vamos ligar essa etapa depois do Auth.', 'info');
+  if (action === 'connect-supabase') connectSupabase().catch((error) => showToast(error.message || 'Não foi possível iniciar a conexão.', 'info'));
+  if (action === 'connect-github') connectGithub();
+  if (action === 'disconnect-supabase') disconnectIntegration(getState().integrations.supabase?.workspace_id, 'supabase').catch(() => {});
+  if (action === 'disconnect-github') showToast('A desconexão do GitHub será ligada ao fluxo OAuth seguro.', 'info');
   if (action === 'logout') {
     try {
       await signOut();
@@ -203,6 +249,10 @@ document.addEventListener('click', async (event) => {
 
 document.addEventListener('submit', (event) => {
   const form = event.target;
+  if (form.matches('#supabase-connection-form')) {
+    event.preventDefault();
+    persistSupabaseConnection(form).catch((error) => showToast(error.message || 'Não foi possível guardar a conexão.', 'info'));
+  }
   if (form.matches('[data-form="auth"]')) {
     event.preventDefault();
     submitAuth(form);
