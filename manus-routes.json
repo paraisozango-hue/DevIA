@@ -1,0 +1,11 @@
+{
+  "routes": [
+    { "path": "/", "title": "Dashboard" },
+    { "path": "/projects", "title": "Projetos" },
+    { "path": "/conversations", "title": "Conversas" },
+    { "path": "/preview", "title": "Preview do projeto" },
+    { "path": "/github", "title": "GitHub" },
+    { "path": "/supabase", "title": "Supabase" },
+    { "path": "/settings", "title": "Configurações" }
+  ]
+}
