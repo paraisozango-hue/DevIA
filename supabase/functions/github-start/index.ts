@@ -32,7 +32,9 @@ async function signState(payload: object, secret: string) {
     false,
     ['sign'],
   );
-  const signature = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(body)));
+  const signature = new Uint8Array(
+    await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(body)),
+  );
   return body + '.' + base64Url(signature);
 }
 
@@ -81,6 +83,9 @@ Deno.serve(async (req) => {
     const redirectUri = Deno.env.get('GITHUB_CALLBACK_URL') ||
       'https://reajamnjltasockpqkrk.supabase.co/functions/v1/github-callback';
 
+    // Use GitHub's standard web OAuth flow for a GitHub App.
+    // The client secret never leaves this Edge Function. The browser only
+    // receives the public GitHub authorization URL.
     const payload = {
       userId: userData.user.id,
       workspaceId,
@@ -89,15 +94,21 @@ Deno.serve(async (req) => {
     };
 
     const state = await signState(payload, config.clientSecret);
-    const installUrl = new URL('https://github.com/apps/' + config.appSlug + '/installations/new');
-    installUrl.searchParams.set('state', state);
+    const authorizeUrl = new URL('https://github.com/login/oauth/authorize');
+    authorizeUrl.searchParams.set('client_id', config.clientId);
+    authorizeUrl.searchParams.set('redirect_uri', redirectUri);
+    authorizeUrl.searchParams.set('state', state);
+    authorizeUrl.searchParams.set('allow_signup', 'false');
 
     return json({
-      authorizationUrl: installUrl.toString(),
+      authorizationUrl: authorizeUrl.toString(),
       redirectUri,
       expiresIn: 600,
     });
   } catch (error) {
-    return json({ message: error instanceof Error ? error.message : 'Não foi possível iniciar a conexão com o GitHub.' }, 500);
+    return json(
+      { message: error instanceof Error ? error.message : 'Não foi possível iniciar a conexão com o GitHub.' },
+      500,
+    );
   }
 });
