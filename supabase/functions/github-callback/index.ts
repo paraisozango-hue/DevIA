@@ -95,19 +95,20 @@ Deno.serve(async (req) => {
       method: 'POST',
       headers: {
         Accept: 'application/json',
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: JSON.stringify({
+      body: new URLSearchParams({
         client_id: config.clientId,
         client_secret: config.clientSecret,
         code,
         redirect_uri: redirectUri,
-      }),
+      }).toString(),
     });
 
     const tokenBody = await tokenResponse.json().catch(() => ({}));
     if (!tokenResponse.ok || tokenBody.error || !tokenBody.access_token) {
-      throw new Error('GitHub não entregou o token de acesso.');
+      const detail = tokenBody.error_description || tokenBody.error || 'resposta inválida';
+      throw new Error('GitHub não entregou o token de acesso: ' + detail);
     }
 
     const accessToken = String(tokenBody.access_token);
