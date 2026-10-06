@@ -1,7 +1,7 @@
 import { appConfig } from '../config.js';
 
 async function requestRoot(url = appConfig.supabase.url, publishableKey = appConfig.supabase.publishableKey) {
-  const response = await fetch(url.replace(/\\/$/, '') + '/rest/v1/', {
+  const response = await fetch(url.replace(/\/$/, '') + '/rest/v1/', {
     headers: {
       apikey: publishableKey,
       Authorization: 'Bearer ' + publishableKey,
@@ -19,7 +19,7 @@ export const supabaseIntegration = Object.freeze({
   provider: 'supabase',
 
   async testConnection({ url, publishableKey }) {
-    const normalizedUrl = String(url || '').trim().replace(/\\/$/, '');
+    const normalizedUrl = String(url || '').trim().replace(/\/$/, '');
     const key = String(publishableKey || '').trim();
     let parsedUrl;
     try {
