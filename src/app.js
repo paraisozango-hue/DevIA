@@ -308,7 +308,29 @@ document.addEventListener('click', async (event) => {
   if (action === 'connect-supabase') connectSupabase().catch((error) => showToast(error.message || 'Não foi possível iniciar a conexão.', 'info'));
   if (action === 'connect-github') connectGithub().catch((error) => showToast(error.message || 'Não foi possível iniciar a conexão com o GitHub.', 'info'));
   if (action === 'disconnect-supabase') disconnectIntegration(getState().integrations.supabase?.workspace_id, 'supabase').then(() => { updateState({ integrations: { ...getState().integrations, supabase: null } }); showToast('Supabase desconectado.'); }).catch((error) => showToast(error.message || 'Não foi possível desconectar.', 'info'));
-  if (action === 'disconnect-github') showToast('A desconexão do GitHub será ligada ao fluxo OAuth seguro.', 'info');
+  if (action === 'disconnect-github') {
+    const workspaceId = getState().integrations.github?.workspace_id;
+    if (!workspaceId) {
+      showToast('Workspace não encontrado.', 'info');
+    } else {
+      fetch('https://reajamnjltasockpqkrk.supabase.co/functions/v1/github-disconnect', {
+        method: 'POST',
+        headers: {
+          apikey: appConfig.supabase.publishableKey,
+          Authorization: 'Bearer ' + (getSession()?.access_token || ''),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ workspaceId }),
+      })
+        .then(async (response) => {
+          const body = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(body.message || 'Não foi possível desconectar o GitHub.');
+          updateState({ integrations: { ...getState().integrations, github: null } });
+          showToast('GitHub desconectado e credenciais protegidas removidas.', 'success');
+        })
+        .catch((error) => showToast(error.message || 'Não foi possível desconectar o GitHub.', 'info'));
+    }
+  }
   if (action === 'logout') {
     try {
       await signOut();
