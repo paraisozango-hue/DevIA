@@ -21,10 +21,19 @@ export const supabaseIntegration = Object.freeze({
   async testConnection({ url, publishableKey }) {
     const normalizedUrl = String(url || '').trim().replace(/\\/$/, '');
     const key = String(publishableKey || '').trim();
-    if (!/^https:\\/\\/[a-z0-9-]+\\.supabase\\.co$/i.test(normalizedUrl)) {
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(normalizedUrl);
+    } catch {
       throw new Error('URL do projeto Supabase inválida.');
     }
+    if (parsedUrl.protocol !== 'https:' || !parsedUrl.hostname.endsWith('.supabase.co') || parsedUrl.pathname !== '/') {
+      throw new Error('Use a URL HTTPS do projeto, por exemplo: https://seu-projeto.supabase.co');
+    }
     if (!key) throw new Error('A chave publishable do Supabase é obrigatória.');
+    if (!/^sb_publishable_/i.test(key) && !key.includes('.')) {
+      throw new Error('Informe uma publishable key válida do Supabase.');
+    }
     await requestRoot(normalizedUrl, key);
     return { state: 'connected', projectUrl: normalizedUrl };
   },
