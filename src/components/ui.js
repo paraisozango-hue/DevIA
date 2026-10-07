@@ -36,6 +36,24 @@ export function escapeHtml(value = '') {
   return String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 }
 
+export function renderMarkdown(value = '') {
+  const source = String(value).replace(/\r\n?/g, '\n');
+  const fenced = [];
+  const withPlaceholders = source.replace(/\`\`\`(?:[a-zA-Z0-9_-]+)?\n?([\s\S]*?)\`\`\`/g, (_, code) => {
+    const token = `@@DEVIA_CODE_${fenced.length}@@`;
+    fenced.push(`<pre class="chat-code"><code>${escapeHtml(code.replace(/^\n|\n$/g, ''))}</code></pre>`);
+    return token;
+  });
+
+  const escaped = escapeHtml(withPlaceholders);
+  const inlineCode = escaped.replace(/\`([^\n`]+)\`/g, '<code class="chat-inline-code">$1</code>');
+  const bold = inlineCode.replace(/\*\*([^\n*]+)\*\*/g, '<strong>$1</strong>');
+  const italic = bold.replace(/(^|[\s(])\*([^\n*]+)\*(?=[$\s).,!?:;])/g, '$1<em>$2</em>');
+  const lines = italic.split('\n');
+  const html = lines.map((line) => line.trim() ? line : '<br>').join('<br>');
+  return fenced.reduce((output, block, index) => output.replace(`@@DEVIA_CODE_${index}@@`, block), html);
+}
+
 export function button(label, { iconName, href, action, variant = 'secondary', size = '', extra = '' } = {}) {
   const tag = href ? 'a' : 'button';
   const attrs = href ? `href="${href}" data-link` : `type="button"${action ? ` data-action="${action}"` : ''}`;
