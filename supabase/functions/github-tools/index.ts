@@ -124,6 +124,7 @@ async function createBranch(token: string, repositoryFullName: string, branch: s
     });
   } catch (error) {
     if (!(error instanceof Error) || !error.message.includes('422')) throw error;
+    throw new Error('O branch ' + branch + ' já existe. Escolha um nome de branch novo.');
   }
   return { branch, baseBranch, sha: base.object.sha };
 }
@@ -162,7 +163,7 @@ async function replaceInFile(admin: any, userId: string, workspaceId: string, to
   return { path, branch, occurrences, changeId: change.id, contentLength: content.length };
 }
 
-async function commitChanges(admin: any, token: string, workspaceId: string, input: any) {
+async function commitChanges(admin: any, userId: string, token: string, workspaceId: string, input: any) {
   const repositoryFullName = String(input.repositoryFullName || '').trim();
   const branch = String(input.branch || '').trim();
   const message = String(input.message || '').trim();
@@ -172,7 +173,7 @@ async function commitChanges(admin: any, token: string, workspaceId: string, inp
 
   const { data: changes, error } = await admin.from('github_changes')
     .select('id,path,content,operation').eq('workspace_id', workspaceId)
-    .eq('repository_full_name', repositoryFullName).eq('branch', branch).order('created_at');
+    .eq('user_id', userId).eq('repository_full_name', repositoryFullName).eq('branch', branch).order('created_at');
   if (error) throw new Error('Não foi possível carregar as alterações preparadas.');
   if (!changes?.length) throw new Error('Nenhuma alteração preparada para este branch.');
 
@@ -203,7 +204,7 @@ async function commitChanges(admin: any, token: string, workspaceId: string, inp
   });
 
   const { error: deleteError } = await admin.from('github_changes').delete()
-    .eq('workspace_id', workspaceId).eq('repository_full_name', repositoryFullName).eq('branch', branch);
+    .eq('workspace_id', workspaceId).eq('user_id', userId).eq('repository_full_name', repositoryFullName).eq('branch', branch);
   if (deleteError) throw new Error('Commit criado, mas não foi possível limpar o staging.');
 
   return { commitSha: commit.sha, branch, files: changes.map((change: any) => change.path) };
@@ -231,7 +232,7 @@ Deno.serve(async (req) => {
     if (action === 'create_branch') return json(await createBranch(token, String(body.repositoryFullName || ''), String(body.branch || ''), String(body.baseBranch || 'main')));
     if (action === 'stage_change') return json({ change: await stageChange(admin, user.id, workspaceId, body) });
     if (action === 'replace_in_file') return json(await replaceInFile(admin, user.id, workspaceId, token, body));
-    if (action === 'commit_changes') return json(await commitChanges(admin, token, workspaceId, body));
+    if (action === 'commit_changes') return json(await commitChanges(admin, user.id, token, workspaceId, body));
     return json({ message: 'Ação GitHub não suportada.' }, 400);
   } catch (error) {
     const reason = error instanceof Error ? error.message : 'github_tool_failed';
