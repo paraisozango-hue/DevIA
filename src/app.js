@@ -361,21 +361,29 @@ subscribe(render);
 
   authReady = true;
   const session = getSession();
-  const currentRoute = getState().route;
+  let currentRoute = getState().route;
 
-  // Em refresh, o servidor pode entregar a raiz da SPA mesmo quando a pessoa
-  // estava em outra tela. Se a sessão já existia antes do boot, restauramos a
-  // última rota protegida em vez de cair no Dashboard.
-  if (session && currentRoute === '/') {
+  // Em refresh, alguns hosts SPA devolvem "/" mesmo quando a pessoa estava
+  // numa rota protegida. Mantemos a última aba protegida e restauramos antes
+  // do primeiro render, evitando que o Dashboard apareça por um instante.
+  if (session) {
     const storedRoute = getStoredRoute();
-    if (storedRoute && storedRoute !== '/') {
-      window.history.replaceState({}, '', storedRoute);
-      updateState({ route: storedRoute });
+    const routeToRestore = currentRoute === '/'
+      ? storedRoute
+      : currentRoute;
+
+    if (routeToRestore && isProtectedRoute(routeToRestore) && routeToRestore !== currentRoute) {
+      window.history.replaceState({}, '', routeToRestore);
+      currentRoute = routeToRestore;
+      updateState({ route: routeToRestore });
+    } else if (isProtectedRoute(routeToRestore || '')) {
+      currentRoute = routeToRestore;
     }
   }
 
   if (session && (currentRoute === '/login' || currentRoute === '/signup')) {
     window.history.replaceState({}, '', '/');
+    currentRoute = '/';
     updateState({ route: '/' });
   }
 
