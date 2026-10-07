@@ -3,7 +3,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 const APP_URL = 'https://deviahg.lovable.app';
 const GITHUB_API = 'https://api.github.com';
 const GITHUB_VERSION = '2026-03-10';
-const GITHUB_REDIRECT_URI = 'https://deviahg.lovable.app/';
+const GITHUB_REDIRECT_URI = 'https://reajamnjltasockpqkrk.supabase.co/functions/v1/github-callback';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': 'https://deviahg.lovable.app',
