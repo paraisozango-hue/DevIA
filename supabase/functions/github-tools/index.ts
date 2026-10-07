@@ -115,6 +115,7 @@ async function searchCode(token: string, query: string, repositoryFullName: stri
 
 async function createBranch(token: string, repositoryFullName: string, branch: string, baseBranch: string) {
   const { owner, repo } = repoParts(repositoryFullName);
+  if (!branch || branch === 'main' || branch === 'master') throw new Error('O branch de trabalho deve ser diferente de main/master.');
   const base = await githubRequest('/repos/' + owner + '/' + repo + '/git/ref/heads/' + encodeURIComponent(baseBranch), token);
   try {
     await githubRequest('/repos/' + owner + '/' + repo + '/git/ref', token, {
@@ -143,11 +144,30 @@ async function stageChange(admin: any, userId: string, workspaceId: string, inpu
   return data;
 }
 
+async function replaceInFile(admin: any, userId: string, workspaceId: string, token: string, input: any) {
+  const repositoryFullName = String(input.repositoryFullName || '').trim();
+  const branch = String(input.branch || '').trim();
+  const path = String(input.path || '').replace(/^\/+/, '').trim();
+  const oldText = String(input.oldText ?? '');
+  const newText = String(input.newText ?? '');
+  if (!repositoryFullName || !branch || !path || !oldText) throw new Error('repositoryFullName, branch, path e oldText são obrigatórios.');
+  if (branch === 'main' || branch === 'master') throw new Error('Alterações devem ocorrer em um branch de trabalho.');
+  const current = await readFile(token, repositoryFullName, path, branch);
+  const occurrences = current.content.split(oldText).length - 1;
+  if (occurrences !== 1) throw new Error('A substituição precisa encontrar exatamente 1 ocorrência em ' + path + ', mas encontrou ' + occurrences + '.');
+  const content = current.content.replace(oldText, newText);
+  const change = await stageChange(admin, userId, workspaceId, {
+    repositoryFullName, branch, path, content, operation: 'upsert',
+  });
+  return { path, branch, occurrences, changeId: change.id, contentLength: content.length };
+}
+
 async function commitChanges(admin: any, token: string, workspaceId: string, input: any) {
   const repositoryFullName = String(input.repositoryFullName || '').trim();
   const branch = String(input.branch || '').trim();
   const message = String(input.message || '').trim();
   if (!repositoryFullName || !branch || !message) throw new Error('repositoryFullName, branch e message são obrigatórios.');
+  if (branch === 'main' || branch === 'master') throw new Error('Commit direto em main/master não é permitido por esta ferramenta.');
   const { owner, repo } = repoParts(repositoryFullName);
 
   const { data: changes, error } = await admin.from('github_changes')
@@ -210,6 +230,7 @@ Deno.serve(async (req) => {
     if (action === 'search_code') return json({ results: await searchCode(token, String(body.query || ''), String(body.repositoryFullName || '')) });
     if (action === 'create_branch') return json(await createBranch(token, String(body.repositoryFullName || ''), String(body.branch || ''), String(body.baseBranch || 'main')));
     if (action === 'stage_change') return json({ change: await stageChange(admin, user.id, workspaceId, body) });
+    if (action === 'replace_in_file') return json(await replaceInFile(admin, user.id, workspaceId, token, body));
     if (action === 'commit_changes') return json(await commitChanges(admin, token, workspaceId, body));
     return json({ message: 'Ação GitHub não suportada.' }, 400);
   } catch (error) {
