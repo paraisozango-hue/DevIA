@@ -16,6 +16,7 @@ import { supabaseIntegration } from './integrations/supabase.js';
 import { getSession, signIn, signUp, signOut, createInitialWorkspace, getCurrentWorkspace, getIntegrations, saveIntegration, disconnectIntegration, refreshSession } from './integrations/auth.js';
 import { showDialog, showToast, icon, escapeHtml } from './components/ui.js';
 import { appConfig } from './config.js';
+import { getGithubPreviewRepositories, prepareGithubPreview } from './services/preview-service.js';
 
 const app = document.querySelector('#app');
 let authReady = false;
@@ -78,6 +79,61 @@ function render() {
   if (state.route === '/conversations') {
     const history = document.querySelector('#chat-history');
     if (history) history.scrollTop = history.scrollHeight;
+  }
+  if (state.route === '/preview') {
+    initializeGithubPreview().catch((error) => setPreviewStatus(error.message || 'Não foi possível carregar o Preview.', true));
+  }
+}
+
+async function setPreviewStatus(message, error = false) {
+  const status = document.querySelector('#preview-status');
+  if (!status) return;
+  status.classList.toggle('preview-status--error', error);
+  status.innerHTML = '<div class="preview-status__icon">' + icon(error ? 'alert' : 'sparkle', 20) + '</div><strong>' + escapeHtml(message) + '</strong><span>' + (error ? 'Verifica a autorização do repositório no GitHub e tenta novamente.' : 'Aguarde enquanto o DevIA prepara o código real.') + '</span>';
+}
+
+async function initializeGithubPreview() {
+  const select = document.querySelector('#preview-repository-select');
+  if (!select) return;
+  await setPreviewStatus('Preparando o código do GitHub...');
+  const body = await getGithubPreviewRepositories();
+  const repositories = body.repositories || [];
+  if (!repositories.length) {
+    select.innerHTML = '<option value="">Nenhum repositório autorizado</option>';
+    await setPreviewStatus('Nenhum repositório autorizado nesta conexão do GitHub.', true);
+    return;
+  }
+  const saved = localStorage.getItem('devia.preview.repository') || '';
+  select.innerHTML = repositories.map((repo) => '<option value="' + escapeHtml(repo.fullName) + '">' + escapeHtml(repo.fullName) + '</option>').join('');
+  select.value = repositories.some((repo) => repo.fullName === saved) ? saved : repositories[0].fullName;
+  await loadGithubPreview(select.value);
+}
+
+async function loadGithubPreview(repositoryFullName) {
+  const frame = document.querySelector('#github-preview-frame');
+  const select = document.querySelector('#preview-repository-select');
+  if (!frame || !repositoryFullName) return;
+  const button = document.querySelector('[data-action="refresh-preview"]');
+  button?.classList.add('is-spinning');
+  await setPreviewStatus('Buscando ' + repositoryFullName + ' no GitHub...');
+  try {
+    const result = await prepareGithubPreview(repositoryFullName, 'main');
+    frame.src = result.previewUrl;
+    frame.hidden = false;
+    const status = document.querySelector('#preview-status');
+    if (status) status.hidden = true;
+    const ref = document.querySelector('#preview-ref');
+    if (ref) ref.textContent = 'Branch: ' + result.ref;
+    const repoLabel = document.querySelector('#preview-repository');
+    if (repoLabel) repoLabel.textContent = result.repository;
+    if (select) select.value = result.repository;
+    localStorage.setItem('devia.preview.repository', result.repository);
+  } catch (error) {
+    frame.hidden = true;
+    await setPreviewStatus(error.message || 'Não foi possível preparar o Preview.', true);
+    throw error;
+  } finally {
+    button?.classList.remove('is-spinning');
   }
 }
 
@@ -469,13 +525,23 @@ document.addEventListener('click', async (event) => {
     }
   }
   if (action === 'refresh-preview') {
-    trigger.classList.add('is-spinning');
-    window.setTimeout(() => trigger.classList.remove('is-spinning'), 700);
-    showToast('Preview demonstrativo atualizado.');
+    const select = document.querySelector('#preview-repository-select');
+    if (select?.value) loadGithubPreview(select.value).catch((error) => showToast(error.message || 'Não foi possível atualizar o Preview.', 'info'));
+    else initializeGithubPreview().catch((error) => showToast(error.message || 'Não foi possível carregar o Preview.', 'info'));
   }
-  if (action === 'open-demo') window.open('/preview-demo.html', '_blank', 'noopener,noreferrer');
+  if (action === 'open-preview') {
+    const frame = document.querySelector('#github-preview-frame');
+    if (frame?.src) window.open(frame.src, '_blank', 'noopener,noreferrer');
+  }
   if (action === 'show-help') showDialog({ title: 'Este é o início.', body: '<p class="dialog-copy">A DevIA agora possui cadastro e login reais através do Supabase Auth. O próximo passo será conectar o GitHub por workspace.</p>', confirmLabel: 'Entendi' });
   if (action === 'show-chat-info') showDialog({ title: 'Contexto da conversa', body: '<p class="dialog-copy">Esta conversa usa o Gemini através da Edge Function segura da DevIA. A resposta vem do backend e a chave da IA permanece protegida no Supabase.</p>', confirmLabel: 'Entendi' });
+});
+
+document.addEventListener('change', (event) => {
+  if (event.target.id === 'preview-repository-select') {
+    const repository = event.target.value;
+    if (repository) loadGithubPreview(repository).catch((error) => showToast(error.message || 'Não foi possível carregar o Preview.', 'info'));
+  }
 });
 
 document.addEventListener('submit', (event) => {
