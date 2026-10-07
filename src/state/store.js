@@ -8,17 +8,9 @@ const initialState = {
     { id: 'studio', name: 'Studio North', description: 'Site institucional para um estúdio de arquitetura.', status: 'Pronto para preview', repository: 'acme/studio-north', updatedAt: 'ontem', color: 'blue' },
     { id: 'pulse', name: 'Pulse Analytics', description: 'Painel de métricas de produto.', status: 'Rascunho', repository: 'Ainda não conectado', updatedAt: 'há 3 dias', color: 'green' },
   ],
-  messages: [
-    { id: 'm1', role: 'assistant', text: 'Oi! Estou acompanhando o projeto Orbit Commerce. O que você gostaria de explorar por aqui?', time: '10:42' },
-    { id: 'm2', role: 'user', text: 'Cria uma página de login moderna.', time: '10:43' },
-    { id: 'm3', role: 'assistant', text: 'Entendi. Vou analisar o projeto e preparar as alterações.', time: '10:43' },
-  ],
+  messages: [],
   integrations: {},
-  changedFiles: [
-    { path: 'src/pages/Login.tsx', change: 'M', language: 'tsx' },
-    { path: 'src/components/Button.tsx', change: 'A', language: 'tsx' },
-    { path: 'src/styles/global.css', change: 'M', language: 'css' },
-  ],
+  changedFiles: [],
 };
 
 let state = structuredClone(initialState);
