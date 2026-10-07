@@ -14,6 +14,7 @@ export function getStoredRoute() {
 }
 
 function persistRoute(route) {
+  if (!routes.has(route) || route === '/' || route === '/login' || route === '/signup') return;
   try { localStorage.setItem(ROUTE_STORAGE_KEY, route); } catch {}
 }
 
