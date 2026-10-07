@@ -1,3 +1,19 @@
+const MESSAGE_STORAGE_KEY = 'devia.conversations.messages';
+
+function loadMessages() {
+  try {
+    const raw = localStorage.getItem(MESSAGE_STORAGE_KEY);
+    const messages = raw ? JSON.parse(raw) : [];
+    return Array.isArray(messages) ? messages.slice(-100) : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistMessages(messages) {
+  try { localStorage.setItem(MESSAGE_STORAGE_KEY, JSON.stringify(messages.slice(-100))); } catch {}
+}
+
 const initialState = {
   route: window.location.pathname,
   mobileNavOpen: false,
@@ -8,7 +24,7 @@ const initialState = {
     { id: 'studio', name: 'Studio North', description: 'Site institucional para um estúdio de arquitetura.', status: 'Pronto para preview', repository: 'acme/studio-north', updatedAt: 'ontem', color: 'blue' },
     { id: 'pulse', name: 'Pulse Analytics', description: 'Painel de métricas de produto.', status: 'Rascunho', repository: 'Ainda não conectado', updatedAt: 'há 3 dias', color: 'green' },
   ],
-  messages: [],
+  messages: loadMessages(),
   integrations: {},
   changedFiles: [],
 };
@@ -36,7 +52,9 @@ export function addProject(project) {
 }
 
 export function addMessage(message) {
-  state = { ...state, messages: [...state.messages, message] };
+  const messages = [...state.messages, message].slice(-100);
+  persistMessages(messages);
+  state = { ...state, messages };
   listeners.forEach((listener) => listener(state));
 }
 
