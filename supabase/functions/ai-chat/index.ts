@@ -297,6 +297,7 @@ Deno.serve(async (req) => {
       if (!candidateContent) throw new Error('Gemini solicitou uma ferramenta sem devolver o contexto da chamada.');
       contents.push(candidateContent);
 
+      const functionResponseParts = [];
       for (const call of calls) {
         const callName = String(call?.name || '');
         const callArgs = call?.args && typeof call.args === 'object' ? call.args : {};
@@ -306,17 +307,15 @@ Deno.serve(async (req) => {
         } catch (toolError) {
           result = { error: toolError instanceof Error ? toolError.message : 'Falha desconhecida na ferramenta.' };
         }
-        contents.push({
-          role: 'user',
-          parts: [{
-            functionResponse: {
-              name: callName,
-              id: call?.id,
-              response: { result },
-            },
-          }],
+        functionResponseParts.push({
+          functionResponse: {
+            name: callName,
+            id: call?.id,
+            response: { result },
+          },
         });
       }
+      contents.push({ role: 'user', parts: functionResponseParts });
       toolRounds += 1;
     }
 
