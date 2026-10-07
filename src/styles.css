@@ -520,3 +520,15 @@ button { color: inherit; }
   .demo-site--standalone .demo-site__footer { flex-wrap: wrap; font-size: 5px; }
   .toast { right: 12px; bottom: 12px; }
 }
+
+.preview-select { max-width: 230px; min-width: 150px; height: 27px; padding: 0 8px; color: #9fa7b4; border: 1px solid rgba(180,190,210,.075); border-radius: 6px; outline: none; background: #0d1117; font: inherit; font-size: 8px; }
+.preview-select:focus { border-color: rgba(134,208,169,.35); }
+.preview-canvas--real { min-height: 610px; padding: 0; position: relative; }
+.github-preview-frame { display: block; width: 100%; min-height: 610px; border: 0; background: #fff; }
+#github-preview-frame { width: 100%; min-height: 610px; border: 0; background: #fff; }
+.preview-status { display: grid; min-height: 610px; place-items: center; align-content: center; gap: 9px; padding: 30px; color: #8b95a4; text-align: center; }
+.preview-status strong { color: #d4d9e0; font-size: 13px; }
+.preview-status span { max-width: 440px; font-size: 9px; line-height: 1.6; }
+.preview-status__icon { display: grid; width: 42px; height: 42px; place-items: center; color: #91d9b2; border: 1px solid rgba(145,217,178,.16); border-radius: 12px; background: rgba(145,217,178,.06); }
+.preview-status--error .preview-status__icon { color: #e0a0a8; border-color: rgba(224,160,168,.16); background: rgba(224,160,168,.06); }
+.integration-card__footer { flex-wrap: wrap; }
