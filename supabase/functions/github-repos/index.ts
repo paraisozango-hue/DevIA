@@ -95,8 +95,41 @@ Deno.serve(async (req) => {
     });
     if (secretError || !secret) throw new Error('Não foi possível recuperar a credencial segura do GitHub.');
 
-    const secretPayload = JSON.parse(String(secret));
+    let secretPayload = JSON.parse(String(secret));
     if (!secretPayload.accessToken) throw new Error('Credencial do GitHub inválida ou expirada.');
+
+    if (secretPayload.refreshToken && secretPayload.expiresAt && Number(secretPayload.expiresAt) <= Date.now() + 120000) {
+      const config = JSON.parse(Deno.env.get('GITHUB_APP_CONFIG') || '{}');
+      const refreshResponse = await fetch('https://github.com/login/oauth/access_token', {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: String(config.clientId || ''),
+          client_secret: String(config.clientSecret || ''),
+          grant_type: 'refresh_token',
+          refresh_token: String(secretPayload.refreshToken),
+        }).toString(),
+      });
+      const refreshed = await refreshResponse.json().catch(() => ({}));
+      if (!refreshResponse.ok || refreshed.error || !refreshed.access_token) {
+        throw new Error('A sessão do GitHub expirou e não pôde ser renovada. Conecte o GitHub novamente.');
+      }
+      secretPayload = {
+        ...secretPayload,
+        accessToken: refreshed.access_token,
+        refreshToken: refreshed.refresh_token || secretPayload.refreshToken,
+        expiresAt: Date.now() + Number(refreshed.expires_in || 28800) * 1000,
+        refreshTokenExpiresAt: refreshed.refresh_token_expires_in
+          ? Date.now() + Number(refreshed.refresh_token_expires_in) * 1000
+          : secretPayload.refreshTokenExpiresAt,
+      };
+      const refreshedSecret = await admin.rpc('store_github_oauth_secret', {
+        secret_value: JSON.stringify(secretPayload),
+        secret_name: 'devia_github_' + workspaceId + '_' + Date.now(),
+      });
+      if (refreshedSecret.error || !refreshedSecret.data) throw new Error('Token renovado, mas não foi possível guardar a nova credencial.');
+      await admin.from('integrations').update({ secret_ref: refreshedSecret.data, updated_at: new Date().toISOString() }).eq('workspace_id', workspaceId).eq('provider', 'github');
+    }
 
     const repositories = await githubRequest(
       '/user/installations/' + encodeURIComponent(installationId) + '/repositories?per_page=100',
