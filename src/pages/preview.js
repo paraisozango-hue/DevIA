@@ -3,6 +3,31 @@ import { getActiveProject } from '../services/project-service.js';
 
 export function renderPreview() {
   const project = getActiveProject();
-  return `${pageHeading('AMBIENTE DO PROJETO', 'Preview do projeto', 'Uma prévia visual do seu projeto. A execução real será conectada futuramente.', badge('Prévia demonstrativa', 'violet', true))}
-    <section class="preview-shell"><div class="preview-toolbar"><div class="preview-toolbar__traffic"><i></i><i></i><i></i></div><div class="preview-address">${icon('shield', 13)}<span>devia.local</span><b>/</b><span>${escapeHtml(project.name.toLowerCase().replace(/\s+/g, '-'))}</span></div><button class="icon-button preview-refresh" type="button" data-action="refresh-preview" aria-label="Atualizar preview">${icon('refresh', 16)}</button><button class="icon-button" type="button" data-action="open-demo" aria-label="Abrir em nova aba">${icon('external', 16)}</button></div><div class="preview-canvas"><div class="demo-site"><nav class="demo-site__nav"><div class="demo-site__brand"><span class="demo-site__mark">n</span> north<span>.</span></div><div class="demo-site__links"><a>Work</a><a>Studio</a><a>Contact</a></div><span class="demo-site__nav-cta">Let's talk <span>↗</span></span></nav><main class="demo-site__hero"><div class="demo-site__kicker"><i></i> INDEPENDENT CREATIVE STUDIO</div><h2>We make<br />brands <em>matter.</em></h2><p>A thoughtful studio for brands ready to move the world forward. Strategy, identity and digital experiences — made with intention.</p><a class="demo-site__button">Explore our work <span>↗</span></a><div class="demo-site__hero-foot"><span>01 — 03</span><span>SCROLL TO EXPLORE ↓</span></div><div class="demo-site__graphic" aria-hidden="true"><span class="graphic-ring graphic-ring--one"></span><span class="graphic-ring graphic-ring--two"></span><span class="graphic-blob"></span><span class="graphic-star">✳</span></div></main><footer class="demo-site__footer"><span>© 2026 NORTH STUDIO</span><span>BASED EVERYWHERE · AVAILABLE WORLDWIDE</span><span>INSTAGRAM ↗</span></footer></div></div><div class="preview-caption"><span>${icon('sparkle', 14)} Preview visual criado para demonstração</span><span>Conteúdo fictício · Nenhum projeto está sendo executado</span></div></section>`;
+  return pageHeading(
+    'AMBIENTE DO PROJETO',
+    'Preview do projeto',
+    'Visualização real do código autorizado no GitHub. O Preview acompanha o branch selecionado.',
+    badge('Código real', 'green', true),
+  ) + `
+    <section class="preview-shell">
+      <div class="preview-toolbar">
+        <div class="preview-toolbar__traffic"><i></i><i></i><i></i></div>
+        <div class="preview-address">${icon('shield', 13)}<span>github-preview</span><b>/</b><span id="preview-repository">${escapeHtml(project.name)}</span></div>
+        <select id="preview-repository-select" class="preview-select" aria-label="Repositório do Preview"><option value="">Carregando repositórios...</option></select>
+        <button class="icon-button preview-refresh" type="button" data-action="refresh-preview" aria-label="Atualizar preview">${icon('refresh', 16)}</button>
+        <button class="icon-button" type="button" data-action="open-preview" aria-label="Abrir preview em nova aba">${icon('external', 16)}</button>
+      </div>
+      <div class="preview-canvas preview-canvas--real">
+        <div id="preview-status" class="preview-status">
+          <div class="preview-status__icon">${icon('sparkle', 20)}</div>
+          <strong>Preparando o código do GitHub...</strong>
+          <span>O DevIA está buscando o index.html e os recursos do branch autorizado.</span>
+        </div>
+        <iframe id="github-preview-frame" title="Preview real do projeto" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads" hidden></iframe>
+      </div>
+      <div class="preview-caption">
+        <span>${icon('sparkle', 14)} Preview servido a partir do GitHub</span>
+        <span id="preview-ref">Branch: --</span>
+      </div>
+    </section>`;
 }
