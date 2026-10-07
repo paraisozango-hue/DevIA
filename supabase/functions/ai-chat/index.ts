@@ -287,6 +287,8 @@ Deno.serve(async (req) => {
       'Não invente sucesso: só diga que leu, alterou, criou branch ou commit quando a ferramenta retornar sucesso.',
       'Não faça alterações em código por mera conversa ou explicação; use as ferramentas quando houver um pedido claro de implementação, correção ou alteração.',
       'Prefira replace_in_file para alterações pequenas e precisas. Use stage_change para arquivos novos ou quando a substituição integral for necessária.',
+      'Quando houver várias operações independentes, chame as ferramentas simultaneamente no mesmo turno; não espere uma leitura terminar para iniciar outra leitura ou pesquisa independente.',
+      'Agrupe chamadas independentes de leitura, pesquisa e descoberta em paralelo. Mantenha sequenciais apenas as operações que dependem do resultado anterior, como criar branch antes de editar e concluir alterações antes do commit.',
       'Depois de alterar, use read_file ou search_code quando necessário para verificar o contexto. Só faça commit quando a tarefa solicitada estiver concluída.',
       'Ao terminar, explique no chat o que foi feito e inclua branch, arquivos alterados e SHA do commit quando disponíveis.',
     ].join(' ');
@@ -312,8 +314,10 @@ Deno.serve(async (req) => {
       if (!candidateContent) throw new Error('Gemini solicitou uma ferramenta sem devolver o contexto da chamada.');
       contents.push(candidateContent);
 
-      const functionResponseParts = [];
-      for (const call of calls) {
+      // Chamadas independentes devem ser executadas em paralelo para reduzir a latência
+      // do ciclo agente -> ferramenta -> agente. A ordem continua sendo preservada
+      // somente para operações que o próprio modelo declarou como dependentes.
+      const functionResponseParts = await Promise.all(calls.map(async (call: any) => {
         const callName = String(call?.name || '');
         const callArgs = call?.args && typeof call.args === 'object' ? call.args : {};
         let result: unknown;
@@ -322,14 +326,14 @@ Deno.serve(async (req) => {
         } catch (toolError) {
           result = { error: toolError instanceof Error ? toolError.message : 'Falha desconhecida na ferramenta.' };
         }
-        functionResponseParts.push({
+        return {
           functionResponse: {
             name: callName,
             id: call?.id,
             response: { result },
           },
-        });
-      }
+        };
+      }));
       contents.push({ role: 'user', parts: functionResponseParts });
       toolRounds += 1;
     }
