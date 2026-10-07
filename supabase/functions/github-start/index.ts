@@ -80,8 +80,7 @@ Deno.serve(async (req) => {
     if (workspaceError || !workspace) return json({ message: 'Workspace não encontrado ou sem acesso.' }, 403);
 
     const config = getSecretConfig();
-    const redirectUri = Deno.env.get('GITHUB_CALLBACK_URL') ||
-      'https://reajamnjltasockpqkrk.supabase.co/functions/v1/github-callback';
+    const redirectUri = 'https://deviahg.lovable.app/';
 
     // Use GitHub's standard web OAuth flow for a GitHub App.
     // The client secret never leaves this Edge Function. The browser only
