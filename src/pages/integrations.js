@@ -27,7 +27,10 @@ function statusView(integration) {
 
 function connectionFooter(provider, integration) {
   if (integration?.status === 'connected') {
-    return '<button class="button button--secondary" type="button" data-action="disconnect-' + provider + '">' + icon('link', 15) + '<span>Desconectar</span></button>';
+    const manage = provider === 'github' && integration?.metadata?.installationId
+      ? '<a class="button button--secondary" href="https://github.com/settings/installations/' + encodeURIComponent(integration.metadata.installationId) + '" target="_blank" rel="noreferrer">' + icon('external', 15) + '<span>Gerenciar acesso</span></a>'
+      : '';
+    return manage + '<button class="button button--secondary" type="button" data-action="disconnect-' + provider + '">' + icon('link', 15) + '<span>Desconectar</span></button>';
   }
   return '<button class="button button--primary" type="button" data-action="' + integrationContent[provider].action + '">' + icon('link', 15) + '<span>' + integrationContent[provider].button + '</span>' + icon('arrow', 15) + '</button>';
 }
@@ -38,6 +41,7 @@ export function renderIntegration(provider, integration = null) {
     '<section class="integration-card panel"><div class="integration-card__top"><div class="integration-visual ' + item.accent + '">' + icon(item.icon, 29) + '</div><div><span class="eyebrow">ESTADO DA CONEXÃO</span><div class="integration-card__status">' + statusView(integration) + '</div></div><span class="integration-card__badge">' + icon('shield', 14) + ' Persistente no workspace</span></div>' +
     '<div class="integration-card__body"><h2>Seu código, sob seu controle.</h2><p>' + escapeHtml(item.detail) + '</p><div class="integration-feature-list">' + item.capabilities.map((feature) => '<div>' + icon('check', 15) + '<span>' + feature + '</span></div>').join('') + '</div>' +
     (provider === 'github' && !integration ? '<div class="integration-note">' + icon('shield', 15) + ' A autorização do GitHub usa OAuth e precisa de uma aplicação GitHub configurada no backend; nenhum token será salvo no navegador.</div>' : '') +
+    (provider === 'github' && integration?.status === 'connected' ? '<div class="integration-note">' + icon('github', 15) + ' O acesso aos repositórios é controlado pela instalação do GitHub App. Se a lista estiver vazia, use <strong>Gerenciar acesso</strong> e selecione o repositório.</div>' : '') +
     '</div><div class="integration-card__footer"><span>' + icon('sparkle', 15) + ' A conexão permanece associada ao seu workspace.</span>' + connectionFooter(provider, integration) + '</div></section>' +
     (provider === 'supabase' && integration?.metadata?.url ? '<div class="integration-note">' + icon('database', 16) + ' Projeto conectado: ' + escapeHtml(integration.metadata.url) + '</div>' : '');
 }
