@@ -1,7 +1,7 @@
 import { appConfig } from '../config.js';
 import { getSession, getCurrentWorkspace } from '../integrations/auth.js';
 
-export async function requestAssistantReply(message, history = []) {
+export async function requestAssistantReply(message, history = [], audio = null) {
   const session = getSession();
   if (!session?.access_token) throw new Error('Entre na DevIA para conversar com a IA.');
 
@@ -19,6 +19,10 @@ export async function requestAssistantReply(message, history = []) {
       workspaceId: workspace.id,
       message,
       history,
+      audio: audio ? {
+        data: audio.data,
+        mimeType: audio.mimeType,
+      } : null,
     }),
   });
 
