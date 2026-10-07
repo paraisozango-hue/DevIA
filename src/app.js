@@ -188,7 +188,16 @@ async function submitChat(form, audioBlob = null) {
   updateState({ isProcessing: true });
 
   try {
-    await saveChatMessage(workspace.id, 'user', displayText);
+    await saveChatMessage(workspace.id, 'user', displayText, { id: userMessage.id, messageType: audioBlob ? 'audio' : 'text' });
+    if (audioBlob) {
+      const uploaded = await uploadChatAudio(workspace.id, getSession()?.user?.id, userMessage.id, audioBlob);
+      await createChatAttachment({
+        messageId: userMessage.id,
+        workspaceId: workspace.id,
+        userId: getSession()?.user?.id,
+        ...uploaded,
+      });
+    }
   } catch (error) {
     updateState({ isProcessing: false });
     showToast('Não foi possível guardar a mensagem: ' + (error?.message || 'erro desconhecido'), 'info');
@@ -204,7 +213,7 @@ async function submitChat(form, audioBlob = null) {
       time: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date()),
     };
     addMessage(assistantMessage);
-    await saveChatMessage(workspace.id, 'assistant', reply).catch((error) => {
+    await saveChatMessage(workspace.id, 'assistant', reply, { id: assistantMessage.id }).catch((error) => {
       showToast('A resposta foi recebida, mas não foi possível guardá-la: ' + (error?.message || 'erro desconhecido'), 'info');
     });
   } catch (error) {
