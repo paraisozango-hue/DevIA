@@ -19,7 +19,6 @@ import { appConfig } from './config.js';
 
 const app = document.querySelector('#app');
 let authReady = false;
-const hadSessionAtBoot = Boolean(getSession());
 
 const PUBLIC_ROUTES = new Set(['/', '/login', '/signup']);
 const PROTECTED_ROUTES = new Set(['/projects', '/conversations', '/preview', '/github', '/supabase', '/settings']);
@@ -367,7 +366,7 @@ subscribe(render);
   // Em refresh, o servidor pode entregar a raiz da SPA mesmo quando a pessoa
   // estava em outra tela. Se a sessão já existia antes do boot, restauramos a
   // última rota protegida em vez de cair no Dashboard.
-  if (session && hadSessionAtBoot && currentRoute === '/') {
+  if (session && currentRoute === '/') {
     const storedRoute = getStoredRoute();
     if (storedRoute && storedRoute !== '/') {
       window.history.replaceState({}, '', storedRoute);
