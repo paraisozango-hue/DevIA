@@ -314,10 +314,9 @@ Deno.serve(async (req) => {
       if (!candidateContent) throw new Error('Gemini solicitou uma ferramenta sem devolver o contexto da chamada.');
       contents.push(candidateContent);
 
-      // Chamadas independentes devem ser executadas em paralelo para reduzir a latência
-      // do ciclo agente -> ferramenta -> agente. A ordem continua sendo preservada
-      // somente para operações que o próprio modelo declarou como dependentes.
-      const functionResponseParts = await Promise.all(calls.map(async (call: any) => {
+      // Orquestração híbrida: operações independentes rodam em paralelo,
+      // enquanto operações com dependência de estado mantêm uma ordem segura.
+      const runToolCall = async (call: any) => {
         const callName = String(call?.name || '');
         const callArgs = call?.args && typeof call.args === 'object' ? call.args : {};
         let result: unknown;
@@ -333,7 +332,30 @@ Deno.serve(async (req) => {
             response: { result },
           },
         };
-      }));
+      };
+
+      const createBranchCalls = calls.filter((call: any) => call?.name === 'create_branch');
+      const commitCalls = calls.filter((call: any) => call?.name === 'commit_changes');
+      const otherCalls = calls.filter((call: any) => call?.name !== 'create_branch' && call?.name !== 'commit_changes');
+
+      const functionResponseParts: any[] = [];
+
+      // Branches precisam existir antes de qualquer leitura/escrita direcionada a eles.
+      for (const call of createBranchCalls) {
+        functionResponseParts.push(await runToolCall(call));
+      }
+
+      // Leituras e alterações independentes podem avançar simultaneamente.
+      // O modelo é instruído a não emitir chamadas que dependam umas das outras no mesmo lote.
+      if (otherCalls.length) {
+        functionResponseParts.push(...await Promise.all(otherCalls.map(runToolCall)));
+      }
+
+      // Commit é sempre o último efeito colateral do lote.
+      for (const call of commitCalls) {
+        functionResponseParts.push(await runToolCall(call));
+      }
+
       contents.push({ role: 'user', parts: functionResponseParts });
       toolRounds += 1;
     }
