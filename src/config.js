@@ -9,4 +9,7 @@ export const appConfig = Object.freeze({
     oauthStartUrl: 'https://reajamnjltasockpqkrk.supabase.co/functions/v1/github-start',
     oauthCallbackUrl: 'https://reajamnjltasockpqkrk.supabase.co/functions/v1/github-callback',
   },
+  ai: {
+    chatUrl: 'https://reajamnjltasockpqkrk.supabase.co/functions/v1/ai-chat',
+  },
 });
