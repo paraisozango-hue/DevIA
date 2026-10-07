@@ -4,7 +4,7 @@ import { getActiveProject } from '../services/project-service.js';
 
 function messageBubble(message) {
   const isUser = message.role === 'user';
-  return `<article class="chat-message ${isUser ? 'chat-message--user' : ''}"><span class="chat-avatar ${isUser ? 'chat-avatar--user' : ''}">${isUser ? 'M' : icon('sparkle', 15)}</span><div class="chat-message__body"><div class="chat-message__meta"><strong>${isUser ? 'Você' : 'DevIA'}</strong><span>${escapeHtml(message.time)}</span></div><div class="chat-message__content">${renderMarkdown(message.text)}</div></div></article>`;
+  return `<article class="chat-message ${isUser ? 'chat-message--user' : ''}"><span class="chat-avatar ${isUser ? 'chat-avatar--user' : ''}">${isUser ? 'M' : icon('sparkle', 15)}</span><div class="chat-message__body"><div class="chat-message__meta"><strong>${isUser ? 'Você' : 'DevIA'}</strong><span>${escapeHtml(message.time)}</span></div><div class="chat-message__content ${isUser ? 'chat-message__content--user' : ''}">${isUser ? escapeHtml(message.text) : renderMarkdown(message.text)}</div></div></article>`;
 }
 
 function actionPanel(state) {
