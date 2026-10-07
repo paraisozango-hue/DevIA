@@ -8,6 +8,7 @@ export const appConfig = Object.freeze({
     appSlug: 'devia-developer',
     oauthStartUrl: 'https://reajamnjltasockpqkrk.supabase.co/functions/v1/github-start',
     oauthCallbackUrl: 'https://reajamnjltasockpqkrk.supabase.co/functions/v1/github-callback',
+    repositoriesUrl: 'https://reajamnjltasockpqkrk.supabase.co/functions/v1/github-repos',
   },
   ai: {
     chatUrl: 'https://reajamnjltasockpqkrk.supabase.co/functions/v1/ai-chat',
