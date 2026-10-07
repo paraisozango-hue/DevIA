@@ -1,8 +1,16 @@
-const MESSAGE_STORAGE_KEY = 'devia.conversations.messages';
+function getMessageStorageKey() {
+  try {
+    const session = JSON.parse(localStorage.getItem('devia.auth.session') || 'null');
+    const userId = session?.user?.id || 'anonymous';
+    return 'devia.conversations.messages.' + userId;
+  } catch {
+    return 'devia.conversations.messages.anonymous';
+  }
+}
 
 function loadMessages() {
   try {
-    const raw = localStorage.getItem(MESSAGE_STORAGE_KEY);
+    const raw = localStorage.getItem(getMessageStorageKey());
     const messages = raw ? JSON.parse(raw) : [];
     return Array.isArray(messages) ? messages.slice(-100) : [];
   } catch {
@@ -11,7 +19,7 @@ function loadMessages() {
 }
 
 function persistMessages(messages) {
-  try { localStorage.setItem(MESSAGE_STORAGE_KEY, JSON.stringify(messages.slice(-100))); } catch {}
+  try { localStorage.setItem(getMessageStorageKey(), JSON.stringify(messages.slice(-100))); } catch {}
 }
 
 const initialState = {
