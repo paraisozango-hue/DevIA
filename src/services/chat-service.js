@@ -1,8 +1,29 @@
-/**
- * Adaptador de demonstração para a futura API de conversas.
- * Mantém os limites claros: sem modelo, chave, rede ou agente autônomo.
- */
-export async function requestAssistantReply() {
-  await new Promise((resolve) => window.setTimeout(resolve, 650));
-  return 'Entendi. Esta é uma resposta demonstrativa — o conector de IA poderá ser adicionado aqui na próxima etapa.';
+import { appConfig } from '../config.js';
+import { getSession, getCurrentWorkspace } from '../integrations/auth.js';
+
+export async function requestAssistantReply(message, history = []) {
+  const session = getSession();
+  if (!session?.access_token) throw new Error('Entre na DevIA para conversar com a IA.');
+
+  const workspace = await getCurrentWorkspace();
+  if (!workspace) throw new Error('Workspace não encontrado.');
+
+  const response = await fetch(appConfig.ai.chatUrl, {
+    method: 'POST',
+    headers: {
+      apikey: appConfig.supabase.publishableKey,
+      Authorization: 'Bearer ' + session.access_token,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      workspaceId: workspace.id,
+      message,
+      history,
+    }),
+  });
+
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.message || 'Não foi possível obter resposta da IA.');
+
+  return body.reply;
 }
