@@ -3,6 +3,13 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 const APP_URL = 'https://deviahg.lovable.app';
 const GITHUB_API = 'https://api.github.com';
 const GITHUB_VERSION = '2026-03-10';
+const GITHUB_REDIRECT_URI = 'https://deviahg.lovable.app/';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': 'https://deviahg.lovable.app',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
 
 function base64UrlToBytes(value: string) {
   const normalized = value.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((value.length + 3) % 4);
@@ -68,6 +75,13 @@ async function githubRequest(path: string, token: string) {
   return body;
 }
 
+function json(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
 function redirect(params: Record<string, string>) {
   // O hosting da DevIA serve a SPA de forma garantida na raiz, mas pode
   // devolver 404 quando o navegador entra diretamente em uma rota profunda.
@@ -78,21 +92,33 @@ function redirect(params: Record<string, string>) {
 }
 
 Deno.serve(async (req) => {
-  try {
-    if (req.method !== 'GET') return new Response('Not found', { status: 404 });
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
-    const url = new URL(req.url);
-    const code = url.searchParams.get('code');
-    const state = url.searchParams.get('state');
-    const error = url.searchParams.get('error');
+  try {
+    let code: string | null = null;
+    let state: string | null = null;
+    let error: string | null = null;
+
+    if (req.method === 'GET') {
+      const url = new URL(req.url);
+      code = url.searchParams.get('code');
+      state = url.searchParams.get('state');
+      error = url.searchParams.get('error');
+    } else if (req.method === 'POST') {
+      const body = await req.json().catch(() => ({}));
+      code = body.code ? String(body.code) : null;
+      state = body.state ? String(body.state) : null;
+      error = body.error ? String(body.error) : null;
+    } else {
+      return json({ message: 'Método não suportado.' }, 405);
+    }
 
     if (error) return redirect({ github: 'error', reason: error });
     if (!code || !state) return redirect({ github: 'error', reason: 'missing_oauth_parameters' });
 
     const config = getConfig();
     const payload = await verifyState(state, config.clientSecret);
-    const redirectUri = Deno.env.get('GITHUB_CALLBACK_URL') ||
-      'https://reajamnjltasockpqkrk.supabase.co/functions/v1/github-callback';
+    const redirectUri = GITHUB_REDIRECT_URI;
 
     const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
@@ -124,6 +150,7 @@ Deno.serve(async (req) => {
     if (!installation) {
       const installUrl = new URL('https://github.com/apps/' + config.appSlug + '/installations/new');
       installUrl.searchParams.set('state', state);
+      if (req.method === 'POST') return json({ action: 'install', installationUrl: installUrl.toString() });
       return Response.redirect(installUrl.toString(), 302);
     }
 
@@ -185,9 +212,11 @@ Deno.serve(async (req) => {
       throw new Error('Não foi possível guardar a conexão do GitHub.');
     }
 
+    if (req.method === 'POST') return json({ github: 'connected' });
     return redirect({ github: 'connected' });
   } catch (error) {
     const reason = error instanceof Error ? error.message : 'github_oauth_failed';
+    if (req.method === 'POST') return json({ github: 'error', reason: reason.slice(0, 180) }, 400);
     return redirect({ github: 'error', reason: reason.slice(0, 180) });
   }
 });
