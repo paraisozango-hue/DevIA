@@ -207,6 +207,7 @@ Deno.serve(async (req) => {
 
   try {
     const { admin, user } = await authenticate(req);
+    const accessToken = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '').trim();
     const body = await req.json().catch(() => ({}));
     const workspaceId = String(body.workspaceId || '').trim();
     const message = String(body.message || '').trim();
@@ -274,7 +275,7 @@ Deno.serve(async (req) => {
             systemInstruction: { parts: [{ text: systemInstruction }] },
             contents,
             tools,
-            toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
+            toolConfig: { functionCallingConfig: { mode: 'auto' } },
             generationConfig: {
               temperature: 0.2,
               maxOutputTokens: 8192,
