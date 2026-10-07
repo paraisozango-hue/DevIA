@@ -48,7 +48,7 @@ export function renderMarkdown(value = '') {
   const escaped = escapeHtml(withPlaceholders);
   const inlineCode = escaped.replace(/\`([^\n`]+)\`/g, '<code class="chat-inline-code">$1</code>');
   const bold = inlineCode.replace(/\*\*([^\n*]+)\*\*/g, '<strong>$1</strong>');
-  const italic = bold.replace(/(^|[\s(])\*([^\n*]+)\*(?=[$\s).,!?:;])/g, '$1<em>$2</em>');
+  const italic = bold.replace(/(^|[\s(])\*([^\n*]+)\*(?=[\s).,!?:;])/g, '$1<em>$2</em>');
   const lines = italic.split('\n');
   const html = lines.map((line) => line.trim() ? line : '<br>').join('<br>');
   return fenced.reduce((output, block, index) => output.replace(`@@DEVIA_CODE_${index}@@`, block), html);
