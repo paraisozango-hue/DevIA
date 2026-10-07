@@ -59,6 +59,21 @@ create table if not exists public.messages (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.ai_runs (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references public.workspaces(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  provider text not null check (provider in ('gemini', 'openai')),
+  model text not null,
+  status text not null check (status in ('started', 'completed', 'error')),
+  input_chars integer not null default 0 check (input_chars >= 0),
+  output_chars integer not null default 0 check (output_chars >= 0),
+  latency_ms integer check (latency_ms is null or latency_ms >= 0),
+  error_message text,
+  created_at timestamptz not null default now(),
+  completed_at timestamptz
+);
+
 create table if not exists public.integrations (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
@@ -144,6 +159,7 @@ alter table public.projects enable row level security;
 alter table public.conversations enable row level security;
 alter table public.messages enable row level security;
 alter table public.integrations enable row level security;
+alter table public.ai_runs enable row level security;
 
 revoke all on table public.profiles, public.workspaces, public.workspace_members,
   public.projects, public.conversations, public.messages, public.integrations from anon;
@@ -151,6 +167,7 @@ revoke all on table public.profiles, public.workspaces, public.workspace_members
 grant select, insert, update, delete on table public.profiles, public.workspaces,
   public.workspace_members, public.projects, public.conversations,
   public.messages, public.integrations to authenticated;
+grant select on table public.ai_runs to authenticated;
 
 drop policy if exists "users can read own profile" on public.profiles;
 create policy "users can read own profile" on public.profiles for select to authenticated
@@ -281,6 +298,10 @@ using (exists (
   join public.projects p on p.id = c.project_id
   where c.id = messages.conversation_id and public.is_workspace_admin(p.workspace_id)
 ));
+
+drop policy if exists "members can read ai runs" on public.ai_runs;
+create policy "members can read ai runs" on public.ai_runs for select to authenticated
+using (public.is_workspace_member(workspace_id));
 
 drop policy if exists "members can read integrations" on public.integrations;
 create policy "members can read integrations" on public.integrations for select to authenticated
