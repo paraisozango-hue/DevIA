@@ -120,6 +120,7 @@ async function loadGithubPreview(repositoryFullName) {
   await setPreviewStatus('Buscando ' + repositoryFullName + ' no GitHub...');
   try {
     const result = await prepareGithubPreview(repositoryFullName, 'main');
+    await savePreviewSession(result).catch(() => null);
     frame.src = result.previewUrl;
     frame.hidden = false;
     const status = document.querySelector('#preview-status');
