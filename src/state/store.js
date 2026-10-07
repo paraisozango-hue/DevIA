@@ -1,27 +1,3 @@
-function getMessageStorageKey() {
-  try {
-    const session = JSON.parse(localStorage.getItem('devia.auth.session') || 'null');
-    const userId = session?.user?.id || 'anonymous';
-    return 'devia.conversations.messages.' + userId;
-  } catch {
-    return 'devia.conversations.messages.anonymous';
-  }
-}
-
-function loadMessages() {
-  try {
-    const raw = localStorage.getItem(getMessageStorageKey());
-    const messages = raw ? JSON.parse(raw) : [];
-    return Array.isArray(messages) ? messages.slice(-100) : [];
-  } catch {
-    return [];
-  }
-}
-
-function persistMessages(messages) {
-  try { localStorage.setItem(getMessageStorageKey(), JSON.stringify(messages.slice(-100))); } catch {}
-}
-
 const initialState = {
   route: window.location.pathname,
   mobileNavOpen: false,
@@ -32,7 +8,7 @@ const initialState = {
     { id: 'studio', name: 'Studio North', description: 'Site institucional para um estúdio de arquitetura.', status: 'Pronto para preview', repository: 'acme/studio-north', updatedAt: 'ontem', color: 'blue' },
     { id: 'pulse', name: 'Pulse Analytics', description: 'Painel de métricas de produto.', status: 'Rascunho', repository: 'Ainda não conectado', updatedAt: 'há 3 dias', color: 'green' },
   ],
-  messages: loadMessages(),
+  messages: [],
   integrations: {},
   changedFiles: [],
 };
@@ -61,7 +37,6 @@ export function addProject(project) {
 
 export function addMessage(message) {
   const messages = [...state.messages, message].slice(-100);
-  persistMessages(messages);
   state = { ...state, messages };
   listeners.forEach((listener) => listener(state));
 }
