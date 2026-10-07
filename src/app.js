@@ -132,8 +132,6 @@ async function submitChat(form) {
   }
 
   try {
-
-  try {
     const reply = await requestAssistantReply(text, history);
     const assistantMessage = {
       id: 'message-' + Date.now() + '-reply',
@@ -142,7 +140,9 @@ async function submitChat(form) {
       time: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date()),
     };
     addMessage(assistantMessage);
-    await saveChatMessage(workspace.id, 'assistant', reply);
+    await saveChatMessage(workspace.id, 'assistant', reply).catch((error) => {
+      showToast('A resposta foi recebida, mas não foi possível guardá-la: ' + (error?.message || 'erro desconhecido'), 'info');
+    });
   } catch (error) {
     const errorMessage = 'Não consegui falar com a IA agora: ' + (error?.message || 'erro desconhecido');
     addMessage({
