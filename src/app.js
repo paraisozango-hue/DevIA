@@ -17,9 +17,11 @@ import { getSession, signIn, signUp, signOut, createInitialWorkspace, getCurrent
 import { showDialog, showToast, icon, escapeHtml } from './components/ui.js';
 import { appConfig } from './config.js';
 import { getGithubPreviewRepositories, prepareGithubPreview } from './services/preview-service.js';
+import { startAudioRecording, stopAudioRecording, isRecording, audioBlobToBase64 } from './services/audio-service.js';
 
 const app = document.querySelector('#app');
 let authReady = false;
+let audioStopRequested = false;
 
 const PUBLIC_ROUTES = new Set(['/', '/login', '/signup']);
 const PROTECTED_ROUTES = new Set(['/projects', '/conversations', '/preview', '/github', '/supabase', '/settings']);
@@ -152,10 +154,10 @@ function openUndoDialog() {
   showDialog({ title: 'Desfazer alterações?', body: '<p class="dialog-copy">Esta ação limpa apenas o painel demonstrativo de arquivos. Ela não altera código, repositório ou arquivos do projeto.</p>', confirmLabel: 'Limpar demonstração', onConfirmAction: 'confirm-undo' });
 }
 
-async function submitChat(form) {
+async function submitChat(form, audioBlob = null) {
   const input = form.querySelector('[name="message"]');
-  const text = input?.value.trim();
-  if (!text || getState().isProcessing) return;
+  const text = input?.value.trim() || '';
+  if ((!text && !audioBlob) || getState().isProcessing) return;
 
   const workspace = await getCurrentWorkspace();
   if (!workspace) {
@@ -168,10 +170,17 @@ async function submitChat(form) {
     text: message.text,
   }));
 
+  const audioData = audioBlob ? {
+    data: await audioBlobToBase64(audioBlob),
+    mimeType: audioBlob.type || 'audio/webm',
+  } : null;
+  const displayText = text || 'Mensagem de áudio';
+  const audioUrl = audioBlob ? URL.createObjectURL(audioBlob) : null;
   const userMessage = {
     id: 'message-' + Date.now(),
     role: 'user',
-    text,
+    text: displayText,
+    audioUrl,
     time: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date()),
   };
   addMessage(userMessage);
@@ -179,7 +188,7 @@ async function submitChat(form) {
   updateState({ isProcessing: true });
 
   try {
-    await saveChatMessage(workspace.id, 'user', text);
+    await saveChatMessage(workspace.id, 'user', displayText);
   } catch (error) {
     updateState({ isProcessing: false });
     showToast('Não foi possível guardar a mensagem: ' + (error?.message || 'erro desconhecido'), 'info');
@@ -187,7 +196,7 @@ async function submitChat(form) {
   }
 
   try {
-    const reply = await requestAssistantReply(text, history);
+    const reply = await requestAssistantReply(text || 'Entenda a mensagem de áudio do usuário e execute a solicitação.', history, audioData);
     const assistantMessage = {
       id: 'message-' + Date.now() + '-reply',
       role: 'assistant',
@@ -534,7 +543,8 @@ document.addEventListener('click', async (event) => {
     if (frame?.src) window.open(frame.src, '_blank', 'noopener,noreferrer');
   }
   if (action === 'show-help') showDialog({ title: 'Este é o início.', body: '<p class="dialog-copy">A DevIA agora possui cadastro e login reais através do Supabase Auth. O próximo passo será conectar o GitHub por workspace.</p>', confirmLabel: 'Entendi' });
-  if (action === 'show-chat-info') showDialog({ title: 'Contexto da conversa', body: '<p class="dialog-copy">Esta conversa usa o Gemini através da Edge Function segura da DevIA. A resposta vem do backend e a chave da IA permanece protegida no Supabase.</p>', confirmLabel: 'Entendi' });
+  if (action === 'toggle-audio') toggleAudioRecording();
+  if (action === 'show-chat-info') showDialog({ title: 'Contexto da conversa', body: '<p class="dialog-copy">Esta conversa usa o Gemini através da Edge Function segura da DevIA. Texto e áudio passam pelo mesmo agente, e a chave da IA permanece protegida no Supabase.</p>', confirmLabel: 'Entendi' });
 });
 
 document.addEventListener('change', (event) => {
