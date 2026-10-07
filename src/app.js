@@ -276,8 +276,40 @@ subscribe(render);
   }
 
   const callbackParams = new URLSearchParams(window.location.search);
-  const githubResult = callbackParams.get('github');
-  const githubReason = callbackParams.get('reason');
+  const githubCode = callbackParams.get('code');
+  const githubState = callbackParams.get('state');
+  const githubError = callbackParams.get('error');
+  let githubResult = callbackParams.get('github');
+  let githubReason = callbackParams.get('reason');
+
+  if ((githubCode && githubState) || githubError) {
+    callbackParams.delete('code');
+    callbackParams.delete('state');
+    callbackParams.delete('error');
+    window.history.replaceState({}, '', '/' + (callbackParams.toString() ? '?' + callbackParams.toString() : ''));
+
+    try {
+      const response = await fetch(appConfig.github.oauthCallbackUrl, {
+        method: 'POST',
+        headers: {
+          apikey: appConfig.supabase.publishableKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ code: githubCode, state: githubState, error: githubError }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (body.action === 'install' && body.installationUrl) {
+        window.location.assign(body.installationUrl);
+        return;
+      }
+      githubResult = body.github || (response.ok ? 'connected' : 'error');
+      githubReason = body.reason || githubError;
+    } catch (error) {
+      githubResult = 'error';
+      githubReason = error?.message || 'Não foi possível concluir a conexão com o GitHub.';
+    }
+  }
+
   if (githubResult) {
     callbackParams.delete('github');
     callbackParams.delete('reason');
