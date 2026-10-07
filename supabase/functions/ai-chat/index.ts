@@ -190,6 +190,45 @@ async function executeGithubTool(accessToken: string, workspaceId: string, name:
   return invokeGithubTool(accessToken, workspaceId, action, args);
 }
 
+async function callGemini(apiKey: string, preferredModel: string, contents: any[], systemInstruction: string, tools: any[]) {
+  const candidates = [...new Set([preferredModel, 'gemini-3.7-flash', 'gemini-3.5-flash-lite'])];
+  let lastError = 'Gemini indisponível.';
+  for (const model of candidates) {
+    const response = await fetch(
+      GEMINI_API + '/models/' + encodeURIComponent(model) + ':generateContent',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemInstruction }] },
+          contents,
+          ...(tools?.length ? {
+            tools,
+            toolConfig: { functionCallingConfig: { mode: 'auto' } },
+          } : {}),
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 8192,
+          },
+        }),
+      },
+    );
+
+    const body = await response.json().catch(() => ({}));
+    if (response.ok) return { body, model };
+
+    const detail = body?.error?.message || 'Gemini retornou HTTP ' + response.status;
+    lastError = detail;
+
+    // 429/5xx são transitórios: troca imediatamente para um modelo Flash mais leve.
+    if (response.status !== 429 && response.status < 500) break;
+  }
+  throw new Error(lastError);
+}
+
 function extractFunctionCalls(body: any) {
   return (body?.candidates || [])
     .flatMap((candidate: any) => candidate?.content?.parts || [])
@@ -260,35 +299,11 @@ Deno.serve(async (req) => {
     const tools = [{ functionDeclarations: githubToolDeclarations }];
     let geminiBody: any = null;
     let toolRounds = 0;
-    const maxToolRounds = 8;
+    const maxToolRounds = 6;
 
     while (toolRounds < maxToolRounds) {
-      const response = await fetch(
-        GEMINI_API + '/models/' + encodeURIComponent(model) + ':generateContent',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': apiKey,
-          },
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: systemInstruction }] },
-            contents,
-            tools,
-            toolConfig: { functionCallingConfig: { mode: 'auto' } },
-            generationConfig: {
-              temperature: 0.2,
-              maxOutputTokens: 8192,
-            },
-          }),
-        },
-      );
-
-      geminiBody = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        const detail = geminiBody?.error?.message || 'Gemini retornou HTTP ' + response.status;
-        throw new Error(detail);
-      }
+      const geminiResult = await callGemini(apiKey, model, contents, systemInstruction, tools);
+      geminiBody = geminiResult.body;
 
       const calls = extractFunctionCalls(geminiBody);
       if (!calls.length) break;
