@@ -11,6 +11,7 @@ import { renderLanding } from './pages/landing.js';
 import { getState, subscribe, updateState, addMessage, resetChangedFiles } from './state/store.js';
 import { createDemoProject } from './services/project-service.js';
 import { requestAssistantReply } from './services/chat-service.js';
+import { loadChatMessages, saveChatMessage } from './services/conversation-service.js';
 import { supabaseIntegration } from './integrations/supabase.js';
 import { getSession, signIn, signUp, signOut, createInitialWorkspace, getCurrentWorkspace, getIntegrations, saveIntegration, disconnectIntegration, refreshSession } from './integrations/auth.js';
 import { showDialog, showToast, icon, escapeHtml } from './components/ui.js';
@@ -101,35 +102,56 @@ async function submitChat(form) {
   const text = input?.value.trim();
   if (!text || getState().isProcessing) return;
 
+  const workspace = await getCurrentWorkspace();
+  if (!workspace) {
+    showToast('Workspace não encontrado.', 'info');
+    return;
+  }
+
   const history = getState().messages.map((message) => ({
     role: message.role,
     text: message.text,
   }));
 
-  addMessage({
+  const userMessage = {
     id: 'message-' + Date.now(),
     role: 'user',
     text,
     time: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date()),
-  });
+  };
+  addMessage(userMessage);
   input.value = '';
   updateState({ isProcessing: true });
 
   try {
+    await saveChatMessage(workspace.id, 'user', text);
+  } catch (error) {
+    updateState({ isProcessing: false });
+    showToast('Não foi possível guardar a mensagem: ' + (error?.message || 'erro desconhecido'), 'info');
+    return;
+  }
+
+  try {
+
+  try {
     const reply = await requestAssistantReply(text, history);
-    addMessage({
+    const assistantMessage = {
       id: 'message-' + Date.now() + '-reply',
       role: 'assistant',
       text: reply,
       time: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date()),
-    });
+    };
+    addMessage(assistantMessage);
+    await saveChatMessage(workspace.id, 'assistant', reply);
   } catch (error) {
+    const errorMessage = 'Não consegui falar com a IA agora: ' + (error?.message || 'erro desconhecido');
     addMessage({
       id: 'message-' + Date.now() + '-error',
       role: 'assistant',
-      text: 'Não consegui falar com a IA agora: ' + (error?.message || 'erro desconhecido'),
+      text: errorMessage,
       time: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date()),
     });
+    await saveChatMessage(workspace.id, 'assistant', errorMessage).catch(() => null);
   } finally {
     updateState({ isProcessing: false });
   }
@@ -223,6 +245,13 @@ async function connectGithub() {
   } else {
     window.location.assign(body.authorizationUrl);
   }
+}
+
+async function loadPersistedChatMessages() {
+  const workspace = await getCurrentWorkspace();
+  if (!workspace) return;
+  const messages = await loadChatMessages(workspace.id);
+  updateState({ messages });
 }
 
 async function loadPersistedIntegrations() {
@@ -358,6 +387,7 @@ subscribe(render);
       'Meu workspace'
     ).catch(() => null);
 
+    await loadPersistedChatMessages().catch(() => null);
     await loadPersistedIntegrations().catch(() => null);
   }
 
