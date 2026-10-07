@@ -251,10 +251,17 @@ Deno.serve(async (req) => {
     const workspaceId = String(body.workspaceId || '').trim();
     const message = String(body.message || '').trim();
     const history = normalizeHistory(body.history);
+    const audio = body.audio && typeof body.audio === 'object' ? body.audio : null;
+    const audioData = audio ? String(audio.data || '').trim() : '';
+    const audioMimeType = audio ? String(audio.mimeType || 'audio/webm').trim() : '';
 
     if (!workspaceId) return json({ message: 'workspaceId é obrigatório.' }, 400);
-    if (!message) return json({ message: 'message é obrigatório.' }, 400);
+    if (!message && !audioData) return json({ message: 'message ou audio é obrigatório.' }, 400);
     if (message.length > 12000) return json({ message: 'A mensagem é muito longa.' }, 400);
+    if (audioData.length > 18000000) return json({ message: 'O áudio é muito grande. Envie uma gravação mais curta.' }, 413);
+    if (audioData && !/^audio\/(webm|ogg|opus|wav|mp3|mpeg|m4a|aac|flac)$/i.test(audioMimeType)) {
+      return json({ message: 'Formato de áudio não suportado.' }, 415);
+    }
 
     await assertWorkspaceMember(admin, workspaceId, user.id);
 
@@ -270,7 +277,7 @@ Deno.serve(async (req) => {
         provider: 'gemini',
         model,
         status: 'started',
-        input_chars: message.length,
+        input_chars: message.length + audioData.length,
       })
       .select('id')
       .single();
@@ -293,9 +300,18 @@ Deno.serve(async (req) => {
       'Ao terminar, explique no chat o que foi feito e inclua branch, arquivos alterados e SHA do commit quando disponíveis.',
     ].join(' ');
 
+    const userParts: any[] = [];
+    if (message) userParts.push({ text: message });
+    if (audioData) userParts.push({
+      inlineData: {
+        mimeType: audioMimeType,
+        data: audioData,
+      },
+    });
+
     const contents = [
       ...history,
-      { role: 'user', parts: [{ text: message }] },
+      { role: 'user', parts: userParts },
     ];
 
     const tools = [{ functionDeclarations: githubToolDeclarations }];
