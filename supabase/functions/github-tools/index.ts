@@ -70,8 +70,41 @@ async function getToken(admin: any, workspaceId: string) {
   if (!integration || integration.status !== 'connected' || !integration.secret_ref) throw new Error('GitHub não está conectado neste workspace.');
   const { data: secret, error: secretError } = await admin.rpc('read_github_oauth_secret', { secret_id: integration.secret_ref });
   if (secretError || !secret) throw new Error('Não foi possível recuperar a credencial segura do GitHub.');
-  const payload = JSON.parse(String(secret));
+  let payload = JSON.parse(String(secret));
   if (!payload.accessToken) throw new Error('Credencial do GitHub inválida ou expirada.');
+  if (payload.refreshToken && payload.expiresAt && Number(payload.expiresAt) <= Date.now() + 120000) {
+    const config = JSON.parse(Deno.env.get('GITHUB_APP_CONFIG') || '{}');
+    const response = await fetch('https://github.com/login/oauth/access_token', {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: String(config.clientId || ''),
+        client_secret: String(config.clientSecret || ''),
+        grant_type: 'refresh_token',
+        refresh_token: String(payload.refreshToken),
+      }).toString(),
+    });
+    const refreshed = await response.json().catch(() => ({}));
+    if (!response.ok || refreshed.error || !refreshed.access_token) {
+      throw new Error('A sessão do GitHub expirou e não pôde ser renovada. Conecte o GitHub novamente.');
+    }
+    payload = {
+      ...payload,
+      accessToken: refreshed.access_token,
+      refreshToken: refreshed.refresh_token || payload.refreshToken,
+      expiresAt: Date.now() + Number(refreshed.expires_in || 28800) * 1000,
+      refreshTokenExpiresAt: refreshed.refresh_token_expires_in
+        ? Date.now() + Number(refreshed.refresh_token_expires_in) * 1000
+        : payload.refreshTokenExpiresAt,
+    };
+    const saved = await admin.rpc('store_github_oauth_secret', {
+      secret_value: JSON.stringify(payload),
+      secret_name: 'devia_github_' + workspaceId + '_' + Date.now(),
+    });
+    if (saved.error || !saved.data) throw new Error('Token renovado, mas não foi possível guardar a nova credencial.');
+    await admin.from('integrations').update({ secret_ref: saved.data, updated_at: new Date().toISOString() })
+      .eq('workspace_id', workspaceId).eq('provider', 'github');
+  }
   return payload.accessToken;
 }
 
