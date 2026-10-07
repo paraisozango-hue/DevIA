@@ -95,15 +95,43 @@ function openUndoDialog() {
   showDialog({ title: 'Desfazer alterações?', body: '<p class="dialog-copy">Esta ação limpa apenas o painel demonstrativo de arquivos. Ela não altera código, repositório ou arquivos do projeto.</p>', confirmLabel: 'Limpar demonstração', onConfirmAction: 'confirm-undo' });
 }
 
-function submitChat(form) {
+async function submitChat(form) {
   const input = form.querySelector('[name="message"]');
   const text = input?.value.trim();
   if (!text || getState().isProcessing) return;
-  addMessage({ id: 'message-' + Date.now(), role: 'user', text, time: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date()) });
+
+  const history = getState().messages.map((message) => ({
+    role: message.role,
+    text: message.text,
+  }));
+
+  addMessage({
+    id: 'message-' + Date.now(),
+    role: 'user',
+    text,
+    time: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date()),
+  });
+  input.value = '';
   updateState({ isProcessing: true });
-  requestAssistantReply().then((reply) => {
-    addMessage({ id: 'message-' + Date.now() + '-reply', role: 'assistant', text: reply, time: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date()) });
-  }).finally(() => updateState({ isProcessing: false }));
+
+  try {
+    const reply = await requestAssistantReply(text, history);
+    addMessage({
+      id: 'message-' + Date.now() + '-reply',
+      role: 'assistant',
+      text: reply,
+      time: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date()),
+    });
+  } catch (error) {
+    addMessage({
+      id: 'message-' + Date.now() + '-error',
+      role: 'assistant',
+      text: 'Não consegui falar com a IA agora: ' + (error?.message || 'erro desconhecido'),
+      time: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date()),
+    });
+  } finally {
+    updateState({ isProcessing: false });
+  }
 }
 
 function openSupabaseConnectionDialog() {
