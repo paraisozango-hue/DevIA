@@ -532,3 +532,10 @@ button { color: inherit; }
 .preview-status__icon { display: grid; width: 42px; height: 42px; place-items: center; color: #91d9b2; border: 1px solid rgba(145,217,178,.16); border-radius: 12px; background: rgba(145,217,178,.06); }
 .preview-status--error .preview-status__icon { color: #e0a0a8; border-color: rgba(224,160,168,.16); background: rgba(224,160,168,.06); }
 .integration-card__footer { flex-wrap: wrap; }
+
+
+.chat-composer__actions { display: flex; align-items: center; gap: 6px; }
+.voice-button { width: 30px; height: 30px; padding: 0; }
+.voice-button--recording { color: #f0a3ab; border-color: rgba(240,163,171,.35); background: rgba(240,163,171,.08); }
+.chat-audio-message { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 7px; }
+.chat-audio-message audio { grid-column: 1 / -1; width: min(280px, 100%); height: 30px; }
