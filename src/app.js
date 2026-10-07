@@ -186,7 +186,14 @@ async function connectGithub() {
     throw new Error(body.message || 'Não foi possível iniciar a conexão com o GitHub.');
   }
 
-  window.location.assign(body.authorizationUrl);
+  // A DevIA pode ser exibida dentro do iframe de preview da Lovable.
+  // O GitHub bloqueia o login quando tentamos carregá-lo dentro desse iframe.
+  // Fazemos a navegação no topo para abrir o OAuth na janela inteira.
+  if (window.top && window.top !== window) {
+    window.top.location.href = body.authorizationUrl;
+  } else {
+    window.location.assign(body.authorizationUrl);
+  }
 }
 
 async function loadPersistedIntegrations() {
