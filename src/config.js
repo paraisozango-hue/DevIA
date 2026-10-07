@@ -9,6 +9,7 @@ export const appConfig = Object.freeze({
     oauthStartUrl: 'https://reajamnjltasockpqkrk.supabase.co/functions/v1/github-start',
     oauthCallbackUrl: 'https://reajamnjltasockpqkrk.supabase.co/functions/v1/github-callback',
     repositoriesUrl: 'https://reajamnjltasockpqkrk.supabase.co/functions/v1/github-repos',
+    previewUrl: 'https://reajamnjltasockpqkrk.supabase.co/functions/v1/github-preview',
     toolsUrl: 'https://reajamnjltasockpqkrk.supabase.co/functions/v1/github-tools',
   },
   ai: {
