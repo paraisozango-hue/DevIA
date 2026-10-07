@@ -16,7 +16,7 @@ import { supabaseIntegration } from './integrations/supabase.js';
 import { getSession, signIn, signUp, signOut, createInitialWorkspace, getCurrentWorkspace, getIntegrations, saveIntegration, disconnectIntegration, refreshSession } from './integrations/auth.js';
 import { showDialog, showToast, icon, escapeHtml } from './components/ui.js';
 import { appConfig } from './config.js';
-import { getGithubPreviewRepositories, prepareGithubPreview } from './services/preview-service.js';
+import { getGithubPreviewRepositories, prepareGithubPreview, savePreviewSession } from './services/preview-service.js';
 import { startAudioRecording, stopAudioRecording, isRecording, audioBlobToBase64 } from './services/audio-service.js';
 
 const app = document.querySelector('#app');
