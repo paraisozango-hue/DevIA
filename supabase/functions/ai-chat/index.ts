@@ -67,6 +67,137 @@ function extractText(body: any) {
     .trim();
 }
 
+const githubToolDeclarations = [
+  {
+    name: 'list_repositories',
+    description: 'Lista os repositórios GitHub acessíveis pela conexão do workspace. Use para descobrir o repositório correto antes de editar código.',
+    parameters: { type: 'object', properties: {} },
+  },
+  {
+    name: 'read_file',
+    description: 'Lê o conteúdo completo de um arquivo de texto do repositório em um branch/ref.',
+    parameters: {
+      type: 'object',
+      properties: {
+        repositoryFullName: { type: 'string' },
+        path: { type: 'string' },
+        ref: { type: 'string', description: 'Branch, tag ou commit. Use o branch de trabalho depois de criá-lo.' },
+      },
+      required: ['repositoryFullName', 'path'],
+    },
+  },
+  {
+    name: 'search_code',
+    description: 'Pesquisa código e nomes de arquivos no repositório GitHub.',
+    parameters: {
+      type: 'object',
+      properties: {
+        repositoryFullName: { type: 'string' },
+        query: { type: 'string' },
+      },
+      required: ['repositoryFullName', 'query'],
+    },
+  },
+  {
+    name: 'create_branch',
+    description: 'Cria um branch de trabalho a partir de outro branch. Nunca use main/master como branch de escrita.',
+    parameters: {
+      type: 'object',
+      properties: {
+        repositoryFullName: { type: 'string' },
+        branch: { type: 'string', description: 'Nome único do branch de trabalho, por exemplo devia/ai-ajuste-menu-20261007.' },
+        baseBranch: { type: 'string' },
+      },
+      required: ['repositoryFullName', 'branch'],
+    },
+  },
+  {
+    name: 'replace_in_file',
+    description: 'Altera uma parte específica de um arquivo no branch de trabalho. O oldText deve ser uma ocorrência exata e única; a ferramenta lê o arquivo, substitui e prepara a alteração para o commit.',
+    parameters: {
+      type: 'object',
+      properties: {
+        repositoryFullName: { type: 'string' },
+        branch: { type: 'string' },
+        path: { type: 'string' },
+        oldText: { type: 'string' },
+        newText: { type: 'string' },
+      },
+      required: ['repositoryFullName', 'branch', 'path', 'oldText', 'newText'],
+    },
+  },
+  {
+    name: 'stage_change',
+    description: 'Prepara o conteúdo completo de um arquivo para o próximo commit. Use para arquivos novos ou quando for melhor substituir o arquivo inteiro.',
+    parameters: {
+      type: 'object',
+      properties: {
+        repositoryFullName: { type: 'string' },
+        branch: { type: 'string' },
+        path: { type: 'string' },
+        content: { type: 'string' },
+        operation: { type: 'string', enum: ['upsert', 'delete'] },
+      },
+      required: ['repositoryFullName', 'branch', 'path', 'content'],
+    },
+  },
+  {
+    name: 'commit_changes',
+    description: 'Cria o commit real no GitHub com todas as alterações preparadas no branch. Só use depois de concluir e revisar as alterações solicitadas pelo usuário.',
+    parameters: {
+      type: 'object',
+      properties: {
+        repositoryFullName: { type: 'string' },
+        branch: { type: 'string' },
+        message: { type: 'string' },
+      },
+      required: ['repositoryFullName', 'branch', 'message'],
+    },
+  },
+];
+
+async function invokeGithubTool(accessToken: string, workspaceId: string, action: string, args: Record<string, unknown>) {
+  const publishableKeys = JSON.parse(Deno.env.get('SUPABASE_PUBLISHABLE_KEYS') || '{}');
+  const publishableKey = publishableKeys.default || Deno.env.get('SUPABASE_ANON_KEY');
+  if (!publishableKey) throw new Error('Chave publicável do Supabase não disponível.');
+
+  const response = await fetch(Deno.env.get('SUPABASE_URL')! + '/functions/v1/github-tools', {
+    method: 'POST',
+    headers: {
+      apikey: publishableKey,
+      Authorization: 'Bearer ' + accessToken,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ workspaceId, action, ...args }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body?.message || 'A ferramenta GitHub falhou.');
+  return body;
+}
+
+async function executeGithubTool(accessToken: string, workspaceId: string, name: string, args: Record<string, unknown>) {
+  const actionMap: Record<string, string> = {
+    list_repositories: 'list_repositories',
+    read_file: 'read_file',
+    search_code: 'search_code',
+    create_branch: 'create_branch',
+    replace_in_file: 'replace_in_file',
+    stage_change: 'stage_change',
+    commit_changes: 'commit_changes',
+  };
+  const action = actionMap[name];
+  if (!action) throw new Error('Ferramenta não permitida: ' + name);
+  return invokeGithubTool(accessToken, workspaceId, action, args);
+}
+
+function extractFunctionCalls(body: any) {
+  return (body?.candidates || [])
+    .flatMap((candidate: any) => candidate?.content?.parts || [])
+    .filter((part: any) => part?.functionCall)
+    .map((part: any) => part.functionCall);
+}
+
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ message: 'Método não suportado.' }, 405);
@@ -108,11 +239,16 @@ Deno.serve(async (req) => {
     runId = run.id;
 
     const systemInstruction = [
-      'Você é a DevIA, uma engenheira de software dentro de um ambiente de desenvolvimento.',
-      'Responda em português quando o usuário falar português.',
-      'Seja prática, técnica e objetiva.',
-      'Nesta primeira fase você é somente o cérebro conversacional: não diga que alterou arquivos, fez commits ou executou ferramentas que ainda não recebeu.',
-      'Quando o pedido envolver código, explique a abordagem e peça contexto somente quando realmente necessário.',
+      'Você é a DevIA, uma engenheira de software com acesso controlado ao GitHub do workspace.',
+      'Responda em português quando o usuário falar português. Seja prática, técnica e objetiva.',
+      'Você pode ler, pesquisar e alterar código real usando as ferramentas GitHub disponíveis.',
+      'Quando o usuário pedir uma alteração de código, execute o trabalho de verdade: descubra o repositório, leia/pesquise o contexto necessário, crie um branch de trabalho, faça as alterações, revise o resultado e crie o commit.',
+      'Nunca escreva diretamente em main ou master. Sempre crie e use um branch de trabalho.',
+      'Não invente sucesso: só diga que leu, alterou, criou branch ou commit quando a ferramenta retornar sucesso.',
+      'Não faça alterações em código por mera conversa ou explicação; use as ferramentas quando houver um pedido claro de implementação, correção ou alteração.',
+      'Prefira replace_in_file para alterações pequenas e precisas. Use stage_change para arquivos novos ou quando a substituição integral for necessária.',
+      'Depois de alterar, use read_file ou search_code quando necessário para verificar o contexto. Só faça commit quando a tarefa solicitada estiver concluída.',
+      'Ao terminar, explique no chat o que foi feito e inclua branch, arquivos alterados e SHA do commit quando disponíveis.',
     ].join(' ');
 
     const contents = [
@@ -120,33 +256,76 @@ Deno.serve(async (req) => {
       { role: 'user', parts: [{ text: message }] },
     ];
 
-    const response = await fetch(
-      GEMINI_API + '/models/' + encodeURIComponent(model) + ':generateContent',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey,
-        },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: systemInstruction }] },
-          contents,
-          generationConfig: {
-            temperature: 0.2,
-            maxOutputTokens: 4096,
-          },
-        }),
-      },
-    );
+    const tools = [{ functionDeclarations: githubToolDeclarations }];
+    let geminiBody: any = null;
+    let toolRounds = 0;
+    const maxToolRounds = 8;
 
-    const geminiBody = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const detail = geminiBody?.error?.message || 'Gemini retornou HTTP ' + response.status;
-      throw new Error(detail);
+    while (toolRounds < maxToolRounds) {
+      const response = await fetch(
+        GEMINI_API + '/models/' + encodeURIComponent(model) + ':generateContent',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey,
+          },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: systemInstruction }] },
+            contents,
+            tools,
+            toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
+            generationConfig: {
+              temperature: 0.2,
+              maxOutputTokens: 8192,
+            },
+          }),
+        },
+      );
+
+      geminiBody = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const detail = geminiBody?.error?.message || 'Gemini retornou HTTP ' + response.status;
+        throw new Error(detail);
+      }
+
+      const calls = extractFunctionCalls(geminiBody);
+      if (!calls.length) break;
+
+      const candidateContent = geminiBody?.candidates?.[0]?.content;
+      if (!candidateContent) throw new Error('Gemini solicitou uma ferramenta sem devolver o contexto da chamada.');
+      contents.push(candidateContent);
+
+      for (const call of calls) {
+        const callName = String(call?.name || '');
+        const callArgs = call?.args && typeof call.args === 'object' ? call.args : {};
+        let result: unknown;
+        try {
+          result = await executeGithubTool(accessToken, workspaceId, callName, callArgs);
+        } catch (toolError) {
+          result = { error: toolError instanceof Error ? toolError.message : 'Falha desconhecida na ferramenta.' };
+        }
+        contents.push({
+          role: 'user',
+          parts: [{
+            functionResponse: {
+              name: callName,
+              id: call?.id,
+              response: { result },
+            },
+          }],
+        });
+      }
+      toolRounds += 1;
     }
 
+    if (!geminiBody) throw new Error('Gemini não retornou resposta.');
     const reply = extractText(geminiBody);
-    if (!reply) throw new Error('O Gemini não retornou texto.');
+    if (!reply) {
+      throw new Error(toolRounds >= maxToolRounds
+        ? 'A IA atingiu o limite de etapas de ferramentas antes de concluir a resposta.'
+        : 'O Gemini não retornou texto.');
+    }
 
     const latencyMs = Date.now() - startedAt;
     await admin
