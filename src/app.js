@@ -250,31 +250,10 @@ bindRouter();
 subscribe(render);
 
 (async function initializeAuth() {
-  try {
-    await refreshSession();
-  } catch {
-    // Uma falha de refresh não pode impedir a aplicação de renderizar a tela pública/login.
-  }
-
-  authReady = true;
-  const session = getSession();
-  const currentRoute = getState().route;
-
-  if (session && (currentRoute === '/login' || currentRoute === '/signup')) {
-    window.history.replaceState({}, '', '/');
-    updateState({ route: '/' });
-  }
-
-  if (session) {
-    await createInitialWorkspace(
-      session.user?.user_metadata?.full_name ||
-      session.user?.email?.split('@')[0] ||
-      'Meu workspace'
-    ).catch(() => null);
-
-    await loadPersistedIntegrations().catch(() => null);
-  }
-
+  // Processa o retorno do GitHub antes de depender do refresh da sessão.
+  // O callback OAuth é público e já carrega o workspace assinado no state;
+  // esperar o Supabase Auth aqui podia transformar um retorno válido do GitHub
+  // num aparente erro/404 no frontend.
   const callbackParams = new URLSearchParams(window.location.search);
   const githubCode = callbackParams.get('code');
   const githubState = callbackParams.get('state');
@@ -308,6 +287,31 @@ subscribe(render);
       githubResult = 'error';
       githubReason = error?.message || 'Não foi possível concluir a conexão com o GitHub.';
     }
+  }
+
+  try {
+    await refreshSession();
+  } catch {
+    // Uma falha de refresh não pode impedir a aplicação de renderizar a tela pública/login.
+  }
+
+  authReady = true;
+  const session = getSession();
+  const currentRoute = getState().route;
+
+  if (session && (currentRoute === '/login' || currentRoute === '/signup')) {
+    window.history.replaceState({}, '', '/');
+    updateState({ route: '/' });
+  }
+
+  if (session) {
+    await createInitialWorkspace(
+      session.user?.user_metadata?.full_name ||
+      session.user?.email?.split('@')[0] ||
+      'Meu workspace'
+    ).catch(() => null);
+
+    await loadPersistedIntegrations().catch(() => null);
   }
 
   if (githubResult) {
