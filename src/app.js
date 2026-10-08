@@ -19,11 +19,13 @@ import { appConfig } from './config.js';
 import { getGithubPreviewRepositories, prepareGithubPreview, savePreviewSession } from './services/preview-service.js';
 import { startAudioRecording, stopAudioRecording, isRecording, audioBlobToBase64 } from './services/audio-service.js';
 import { uploadChatAudio, createChatAttachment } from './services/media-service.js';
+import { transcribeAudio } from './services/transcription-service.js';
 
 const app = document.querySelector('#app');
 let authReady = false;
 let audioStopRequested = false;
 let pendingAudioBlob = null;
+let pendingAudioTranscript = '';
 
 const PUBLIC_ROUTES = new Set(['/', '/login', '/signup']);
 const PROTECTED_ROUTES = new Set(['/projects', '/conversations', '/preview', '/github', '/supabase', '/settings']);
@@ -173,12 +175,9 @@ async function submitChat(form, audioBlob = null) {
     text: message.text,
   }));
 
-  const audioData = audioBlob ? {
-    data: await audioBlobToBase64(audioBlob),
-    mimeType: audioBlob.type || 'audio/webm',
-  } : null;
-  const displayText = text || 'Mensagem de áudio';
-  const audioUrl = audioBlob ? URL.createObjectURL(audioBlob) : null;
+  const displayText = text || pendingAudioTranscript;
+  if (!displayText) return;
+  const audioUrl = null;
   const userMessage = {
     id: crypto.randomUUID(),
     role: 'user',
@@ -193,16 +192,7 @@ async function submitChat(form, audioBlob = null) {
   updateState({ isProcessing: true });
 
   try {
-    await saveChatMessage(workspace.id, 'user', displayText, { id: userMessage.id, messageType: audioBlob ? 'audio' : 'text' });
-    if (audioBlob) {
-      const uploaded = await uploadChatAudio(workspace.id, getSession()?.user?.id, userMessage.id, audioBlob);
-      await createChatAttachment({
-        messageId: userMessage.id,
-        workspaceId: workspace.id,
-        userId: getSession()?.user?.id,
-        ...uploaded,
-      });
-    }
+    await saveChatMessage(workspace.id, 'user', displayText, { id: userMessage.id, messageType: 'text' });
   } catch (error) {
     updateState({ isProcessing: false });
     showToast('Não foi possível guardar a mensagem: ' + (error?.message || 'erro desconhecido'), 'info');
@@ -210,7 +200,7 @@ async function submitChat(form, audioBlob = null) {
   }
 
   try {
-    const reply = await requestAssistantReply(text || 'Entenda a mensagem de áudio do usuário e execute a solicitação.', history, audioData);
+    const reply = await requestAssistantReply(displayText, history);
     const assistantMessage = {
       id: crypto.randomUUID(),
       role: 'assistant',
@@ -236,27 +226,81 @@ async function submitChat(form, audioBlob = null) {
   }
 }
 
+function drawAudioLevel(level) {
+  const canvas = document.querySelector('#audio-visualizer');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const width = canvas.clientWidth || 280;
+  const height = canvas.clientHeight || 42;
+  const dpr = window.devicePixelRatio || 1;
+  if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+  const bars = 42;
+  const gap = 3;
+  const barWidth = Math.max(2, (width - gap * (bars - 1)) / bars);
+  for (let i = 0; i < bars; i += 1) {
+    const distance = Math.abs(i - (bars - 1) / 2) / ((bars - 1) / 2);
+    const wave = Math.max(0.08, level * (1 - distance * 0.55));
+    const h = Math.max(3, height * wave * (0.7 + Math.sin(i * 1.8 + level * 8) * 0.18));
+    const x = i * (barWidth + gap);
+    const y = (height - h) / 2;
+    ctx.fillStyle = '#a293ff';
+    ctx.beginPath();
+    ctx.roundRect(x, y, barWidth, h, barWidth / 2);
+    ctx.fill();
+  }
+}
+
+function clearAudioDraft() {
+  pendingAudioBlob = null;
+  pendingAudioTranscript = '';
+  updateState({ audioReady: false, audioStatus: '', audioTranscript: '', audioLevel: 0 });
+}
+
+async function confirmAudioDraft() {
+  if (!pendingAudioBlob || getState().audioTranscribing) return;
+  updateState({ audioTranscribing: true, audioStatus: 'Transcrevendo o que você falou...' });
+  try {
+    const transcript = await transcribeAudio(pendingAudioBlob);
+    if (!transcript) throw new Error('Não foi possível obter uma transcrição.');
+    pendingAudioTranscript = transcript;
+    const input = document.querySelector('#chat-input');
+    if (input) {
+      input.value = transcript;
+      input.focus();
+    }
+    pendingAudioBlob = null;
+    updateState({ audioReady: false, audioTranscribing: false, audioTranscript: transcript, audioStatus: 'Transcrição pronta. Revise e toque em enviar.' });
+  } catch (error) {
+    updateState({ audioTranscribing: false, audioStatus: error?.message || 'Não foi possível transcrever o áudio.' });
+  }
+}
+
 async function toggleAudioRecording() {
-  const status = document.querySelector('#audio-status');
   try {
     if (isRecording()) {
       updateState({ audioStatus: 'Finalizando gravação...' });
       stopAudioRecording();
       return;
     }
-    pendingAudioBlob = null;
-    updateState({ audioReady: false, audioStatus: 'Gravando... toca novamente no microfone para terminar.' });
-    await startAudioRecording((blob) => {
-      pendingAudioBlob = blob;
-      updateState({ audioReady: true, audioStatus: 'Áudio pronto. Confere e toca em enviar.' });
+    clearAudioDraft();
+    updateState({ audioStatus: 'Gravando... fale normalmente.' });
+    await startAudioRecording({
+      onLevel: drawAudioLevel,
+      onComplete: (blob) => {
+        pendingAudioBlob = blob;
+        updateState({ audioReady: true, audioStatus: 'Áudio gravado. Escolha OK para transcrever ou recusar para gravar novamente.', audioLevel: 0 });
+      },
     });
   } catch (error) {
-    pendingAudioBlob = null;
-    updateState({ audioReady: false, audioStatus: '' });
+    clearAudioDraft();
     showToast(error?.message || 'Não foi possível iniciar a gravação.', 'info');
   }
 }
-
 function openSupabaseConnectionDialog() {
   const existing = getState().integrations.supabase;
   const currentUrl = existing?.metadata?.url || '';
