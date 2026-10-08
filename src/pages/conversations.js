@@ -16,11 +16,49 @@ function actionPanel(state) {
 }
 
 export function renderConversations(state) {
-  const audioRecording = state.audioStatus?.startsWith('Gravando') || state.audioStatus === 'Finalizando gravação...';
-  const audioStatus = state.audioStatus || 'Gemini conectado pelo backend seguro';
-  const audioPanel = audioRecording || state.audioReady || state.audioTranscribing ? `<div class="audio-capture-panel"><canvas id="audio-visualizer" class="audio-visualizer" aria-hidden="true"></canvas><div class="audio-capture-panel__status">${escapeHtml(audioStatus)}</div>${state.audioTranscribing ? '<div class="audio-capture-panel__loading">Transcrevendo...</div>' : '<div class="audio-capture-panel__actions"><button class="button button--secondary button--sm" type="button" data-action="reject-audio">Recusar</button><button class="button button--primary button--sm" type="button" data-action="confirm-audio">OK, transcrever</button></div>'}</div>` : '';
+  const audioMode = state.audioMode || 'idle';
+  const audioRecording = audioMode === 'recording';
+  const audioReview = audioMode === 'review';
+  const audioTranscribing = audioMode === 'transcribing';
+  const audioElapsed = Math.max(0, Number(state.audioElapsedMs || 0));
+  const audioSeconds = Math.floor(audioElapsed / 1000);
+  const audioTime = String(Math.floor(audioSeconds / 60)).padStart(2, '0') + ':' + String(audioSeconds % 60).padStart(2, '0');
+  const waveform = Array.from({ length: 56 }, (_, index) => {
+    const wave = 10 + ((index * 17) % 25);
+    return '<i style="--wave-height:' + wave + '%;--wave-delay:' + ((index % 9) * -0.11).toFixed(2) + 's"></i>';
+  }).join('');
+
+  const audioPanel = audioMode !== 'idle' ? `
+    <div class="audio-capture-panel audio-capture-panel--${audioMode}" role="status" aria-live="polite">
+      <div class="audio-capture-panel__top">
+        <span class="audio-capture-panel__live">
+          <i></i>
+          <span>${audioRecording ? 'Gravando' : audioTranscribing ? 'Transcrevendo' : 'Mensagem pronta'}</span>
+        </span>
+        <span class="audio-capture-panel__timer" id="audio-timer">${audioTime}</span>
+      </div>
+      <div class="audio-waveform" id="audio-waveform" style="--audio-level:0.15" aria-hidden="true">${waveform}</div>
+      ${audioTranscribing
+        ? '<div class="audio-capture-panel__hint">Convertendo sua voz em texto…</div>'
+        : audioReview
+          ? '<div class="audio-capture-panel__hint">Revise a mensagem antes de enviar.</div>'
+          : '<div class="audio-capture-panel__hint">Fale naturalmente. Você poderá revisar o texto antes de enviar.</div>'}
+      ${audioReview ? `
+        <div class="audio-capture-panel__actions">
+          <button class="audio-control audio-control--cancel" type="button" data-action="cancel-audio" aria-label="Cancelar áudio" title="Cancelar">${icon('close', 18)}</button>
+          <button class="audio-control audio-control--confirm" type="button" data-action="confirm-audio" aria-label="Transcrever áudio" title="Transcrever">${icon('check', 18)}</button>
+        </div>` : audioRecording ? `
+        <div class="audio-capture-panel__actions">
+          <button class="audio-control audio-control--cancel" type="button" data-action="cancel-audio" aria-label="Cancelar gravação" title="Cancelar">${icon('close', 18)}</button>
+          <button class="audio-control audio-control--stop" type="button" data-action="stop-audio" aria-label="Parar gravação" title="Parar">${icon('close', 16)}</button>
+        </div>` : ''}
+    </div>` : '';
+
   const project = getActiveProject();
+  const composerText = audioTranscribing ? '' : (state.audioTranscript || '');
+  const composerPlaceholder = audioReview ? 'A transcrição aparecerá aqui…' : 'Descreva o que você quer criar...';
+
   return `<div class="conversation-heading"><div>${icon('sparkle', 17)} <span class="eyebrow">WORKSPACE DE IA</span><span class="conversation-heading__dot"></span> Gemini</div><h1>Uma ideia para começar?</h1><p>Converse com seu projeto. O Gemini já está conectado ao cérebro da DevIA.</p></div>
-    <div class="conversation-layout"><section class="chat-panel panel"><header class="chat-panel__header"><div class="chat-project"><span class="project-logo project-logo--${project.color}">${icon('layers', 16)}</span><span><strong>${escapeHtml(project.name)}</strong><small>Contexto da conversa</small></span>${icon('chevron', 14)}</div><button class="icon-button" type="button" data-action="show-chat-info" aria-label="Informação">${icon('dots')}</button></header><div class="chat-history" id="chat-history">${state.messages.map(messageBubble).join('')}${state.isProcessing ? `<article class="chat-message"><span class="chat-avatar">${icon('sparkle', 15)}</span><div class="chat-message__body"><div class="chat-message__meta"><strong>DevIA</strong><span class="processing-label">Preparando resposta...</span></div><div class="typing-indicator"><i></i><i></i><i></i></div></div></article>` : ''}</div><form class="chat-composer" data-form="chat"><label class="sr-only" for="chat-input">Escreva um comando para a DevIA</label><textarea id="chat-input" name="message" rows="1" placeholder="Descreva o que você quer criar..." ${state.isProcessing ? 'disabled' : ''}>${escapeHtml(state.audioTranscript || "")}</textarea><div class="chat-composer__bottom"><span id="audio-status">${icon(audioRecording ? 'mic' : (state.audioReady ? 'check' : 'sparkle'), 14)} ${escapeHtml(audioStatus)}</span><div class="chat-composer__actions"><button class="icon-button voice-button ${audioRecording ? 'voice-button--recording' : ''}" type="button" data-action="toggle-audio" aria-label="${audioRecording ? 'Parar gravação' : 'Gravar mensagem de áudio'}" ${state.isProcessing ? 'disabled' : ''}>${icon('mic', 16)}</button><button class="send-button" type="submit" aria-label="Enviar mensagem" ${state.isProcessing || audioRecording ? 'disabled' : ''}>${icon('send', 16)}</button></div>${audioPanel}</div></form></section>
+    <div class="conversation-layout"><section class="chat-panel panel"><header class="chat-panel__header"><div class="chat-project"><span class="project-logo project-logo--${project.color}">${icon('layers', 16)}</span><span><strong>${escapeHtml(project.name)}</strong><small>Contexto da conversa</small></span>${icon('chevron', 14)}</div><button class="icon-button" type="button" data-action="show-chat-info" aria-label="Informação">${icon('dots')}</button></header><div class="chat-history" id="chat-history">${state.messages.map(messageBubble).join('')}${state.isProcessing ? `<article class="chat-message"><span class="chat-avatar">${icon('sparkle', 15)}</span><div class="chat-message__body"><div class="chat-message__meta"><strong>DevIA</strong><span class="processing-label">Preparando resposta...</span></div><div class="typing-indicator"><i></i><i></i><i></i></div></div></article>` : ''}</div><form class="chat-composer ${audioMode !== 'idle' ? 'chat-composer--audio' : ''}" data-form="chat"><label class="sr-only" for="chat-input">Escreva um comando para a DevIA</label><textarea id="chat-input" name="message" rows="1" placeholder="${composerPlaceholder}" ${state.isProcessing || audioRecording || audioTranscribing ? 'disabled' : ''}>${escapeHtml(composerText)}</textarea>${audioPanel}<div class="chat-composer__bottom"><span id="audio-status">${icon(audioMode === 'recording' ? 'mic' : 'sparkle', 14)} ${audioMode === 'recording' ? 'Escutando…' : audioMode === 'review' ? 'Pronto para transcrever' : audioMode === 'transcribing' ? 'A preparar a transcrição…' : 'Gemini conectado pelo backend seguro'}</span><div class="chat-composer__actions"><button class="icon-button voice-button ${audioRecording ? 'voice-button--recording' : ''}" type="button" data-action="toggle-audio" aria-label="${audioRecording ? 'Parar gravação' : 'Gravar mensagem de voz'}" ${state.isProcessing || audioTranscribing || audioReview ? 'disabled' : ''}>${icon(audioRecording ? 'close' : 'mic', 17)}</button><button class="send-button" type="submit" aria-label="Enviar mensagem" ${state.isProcessing || audioRecording || audioTranscribing ? 'disabled' : ''}>${icon('send', 16)}</button></div></div></form></section>
     <aside class="panel actions-panel"><div class="panel-heading"><div><span class="eyebrow">SESSÃO ATUAL</span><h2>Ações realizadas</h2></div><span class="count-badge">${state.changedFiles.length}</span></div><p class="actions-panel__intro">As alterações reais aparecerão aqui quando o agente receber acesso às ferramentas de código.</p>${actionPanel(state)}</aside></div>`;
 }
