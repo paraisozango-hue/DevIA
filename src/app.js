@@ -626,7 +626,7 @@ document.addEventListener('click', async (event) => {
   if (action === 'toggle-audio') toggleAudioRecording();
   if (action === 'confirm-audio') confirmAudioDraft();
   if (action === 'reject-audio') clearAudioDraft();
-  if (action === 'show-chat-info') showDialog({ title: 'Contexto da conversa', body: '<p class="dialog-copy">Esta conversa usa o Gemini através da Edge Function segura da DevIA. Texto e áudio passam pelo mesmo agente, e a chave da IA permanece protegida no Supabase.</p>', confirmLabel: 'Entendi' });
+  if (action === 'show-chat-info') showDialog({ title: 'Contexto da conversa', body: '<p class="dialog-copy">Esta conversa usa o Gemini através da Edge Function segura da DevIA. O áudio é transcrito com segurança antes de ser enviado como texto ao agente, e as chaves da IA permanecem protegidas no Supabase.</p>', confirmLabel: 'Entendi' });
 });
 
 document.addEventListener('change', (event) => {
