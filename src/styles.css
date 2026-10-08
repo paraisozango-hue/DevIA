@@ -536,11 +536,80 @@ button { color: inherit; }
 
 .chat-composer__actions { display: flex; align-items: center; gap: 6px; }
 .voice-button { width: 30px; height: 30px; padding: 0; }
-.audio-capture-panel { display: grid; gap: 9px; margin-top: 9px; padding: 10px; border: 1px solid rgba(162,147,255,.18); border-radius: 12px; background: rgba(162,147,255,.045); }
-.audio-visualizer { display: block; width: 100%; height: 42px; border-radius: 8px; background: rgba(255,255,255,.018); }
-.audio-capture-panel__status { color: #b8b0d9; font-size: 10px; line-height: 1.45; }
-.audio-capture-panel__loading { color: #aaa1ff; font-size: 10px; font-weight: 650; }
-.audio-capture-panel__actions { display: flex; justify-content: flex-end; gap: 7px; }
-.voice-button--recording { color: #f0a3ab; border-color: rgba(240,163,171,.35); background: rgba(240,163,171,.08); }
+.voice-button--recording { color: #f1a2ab; border-color: rgba(241,162,171,.35); background: rgba(241,162,171,.08); }
+.chat-composer--audio { border-color: rgba(162,147,255,.28); box-shadow: 0 0 0 3px rgba(162,147,255,.045); }
+.audio-capture-panel {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  margin: 8px 0 2px;
+  padding: 13px 13px 11px;
+  overflow: hidden;
+  border: 1px solid rgba(194,204,222,.12);
+  border-radius: 15px;
+  background: linear-gradient(145deg, rgba(255,255,255,.035), rgba(162,147,255,.045));
+}
+.audio-capture-panel::after {
+  content: "";
+  position: absolute;
+  inset: auto -20% -75% -20%;
+  height: 120px;
+  pointer-events: none;
+  background: radial-gradient(ellipse, rgba(162,147,255,.10), transparent 65%);
+}
+.audio-capture-panel__top { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; }
+.audio-capture-panel__live { display: inline-flex; align-items: center; gap: 7px; color: #c5c8d1; font-size: 9px; font-weight: 650; letter-spacing: .15px; }
+.audio-capture-panel__live i { width: 6px; height: 6px; border-radius: 50%; background: #e58d98; box-shadow: 0 0 0 4px rgba(229,141,152,.08), 0 0 12px rgba(229,141,152,.35); }
+.audio-capture-panel--review .audio-capture-panel__live i { background: #91e6bd; box-shadow: 0 0 0 4px rgba(145,230,189,.07); }
+.audio-capture-panel--transcribing .audio-capture-panel__live i { background: #a293ff; animation: audio-pulse 1s ease-in-out infinite; }
+.audio-capture-panel__timer { color: #858c9b; font-variant-numeric: tabular-nums; font-size: 9px; letter-spacing: .6px; }
+.audio-waveform {
+  --audio-level: .15;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2.5px;
+  width: 100%;
+  height: 54px;
+  padding: 0 4px;
+  border-radius: 10px;
+}
+.audio-waveform i {
+  width: 3px;
+  height: var(--wave-height);
+  min-height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(to top, rgba(162,147,255,.30), #b3a6ff);
+  opacity: calc(.34 + var(--audio-level) * .66);
+  transform: scaleY(calc(.42 + var(--audio-level) * .58));
+  transform-origin: center;
+  animation: audio-wave 1.15s ease-in-out infinite alternate;
+  animation-delay: var(--wave-delay);
+}
+.audio-capture-panel--review .audio-waveform i { animation-play-state: paused; opacity: .62; }
+.audio-capture-panel__hint { position: relative; z-index: 1; min-height: 13px; color: #777f8e; text-align: center; font-size: 9px; line-height: 1.4; }
+.audio-capture-panel__actions { position: relative; z-index: 2; display: flex; align-items: center; justify-content: center; gap: 10px; padding-top: 1px; }
+.audio-control {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid rgba(194,204,222,.14);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform .15s ease, border-color .15s ease, background .15s ease;
+}
+.audio-control:hover { transform: translateY(-1px); }
+.audio-control--cancel { color: #9da4b2; background: rgba(255,255,255,.025); }
+.audio-control--cancel:hover { border-color: rgba(240,163,171,.35); color: #efb0b8; background: rgba(240,163,171,.06); }
+.audio-control--stop { color: #f0a4ad; border-color: rgba(240,164,173,.28); background: rgba(240,164,173,.08); }
+.audio-control--stop .icon { width: 13px; height: 13px; fill: currentColor; }
+.audio-control--confirm { color: #0d1411; border-color: transparent; background: #a8e9c8; box-shadow: 0 5px 18px rgba(137,231,187,.12); }
+.audio-control--confirm:hover { background: #b9f2d6; }
 .chat-audio-message { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 7px; }
 .chat-audio-message audio { grid-column: 1 / -1; width: min(280px, 100%); height: 30px; }
+@keyframes audio-wave { from { transform: scaleY(.38); } to { transform: scaleY(calc(.7 + var(--audio-level) * .3)); } }
+@keyframes audio-pulse { 50% { opacity: .45; transform: scale(.78); } }
