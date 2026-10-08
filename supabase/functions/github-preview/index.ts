@@ -43,4 +43,4 @@ Deno.serve(async req=>{if(req.method==='OPTIONS')return new Response('ok',{heade
 const tok2=await sign({workspaceId:w,userId:user.id,repository:repo,ref,exp:Math.floor(Date.now()/1000)+TTL},await secret());
 const previewUrl=purl(tok2,'index.html');
 await a.from('preview_sessions').insert({workspace_id:w,user_id:user.id,repository_full_name:repo,ref,preview_url:previewUrl,status:'ready',expires_at:expiresAt});
-return json({previewUrl,repository:repo,ref,expiresIn:TTL})}catch(e){const m=e instanceof Error?e.message:'github_preview_failed';return req.method==='GET'?new Response(m.slice(0,500),{status:400,headers:{...CORS,'Content-Type':'text/plain'}}):json({message:m.slice(0,500)},400)}});
+return json({previewUrl,repository:repo,ref,expiresIn:TTL})}catch(e){const m=e instanceof Error?e.message:'github_preview_failed';return req.method==='GET'?new Response(m.slice(0,500),{status:400,headers:{...GET_CORS,'Content-Type':'text/plain'}}):json({message:m.slice(0,500)},400)}});
