@@ -223,13 +223,14 @@ async function submitChat(form, audioBlob = null) {
     });
   } catch (error) {
     const errorMessage = 'Não consegui falar com a IA agora: ' + (error?.message || 'erro desconhecido');
+    const errorMessageId = crypto.randomUUID();
     addMessage({
-      id: crypto.randomUUID(),
+      id: errorMessageId,
       role: 'assistant',
       text: errorMessage,
       time: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date()),
     });
-    await saveChatMessage(workspace.id, 'assistant', errorMessage, { id: crypto.randomUUID() }).catch(() => null);
+    await saveChatMessage(workspace.id, 'assistant', errorMessage, { id: errorMessageId }).catch(() => null);
   } finally {
     updateState({ isProcessing: false, audioReady: false, audioStatus: '' });
   }
