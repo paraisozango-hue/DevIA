@@ -2,8 +2,10 @@ const initialState = {
   route: window.location.pathname,
   mobileNavOpen: false,
   isProcessing: false,
+  audioMode: 'idle',
   audioReady: false,
   audioStatus: '',
+  audioElapsedMs: 0,
   activeProjectId: 'orbit',
   projects: [
     { id: 'orbit', name: 'Orbit Commerce', description: 'Loja virtual headless para marcas independentes.', status: 'Em andamento', repository: 'acme/orbit-commerce', updatedAt: 'há 2 horas', color: 'violet' },
