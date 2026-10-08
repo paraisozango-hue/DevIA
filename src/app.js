@@ -18,10 +18,12 @@ import { showDialog, showToast, icon, escapeHtml } from './components/ui.js';
 import { appConfig } from './config.js';
 import { getGithubPreviewRepositories, prepareGithubPreview, savePreviewSession } from './services/preview-service.js';
 import { startAudioRecording, stopAudioRecording, isRecording, audioBlobToBase64 } from './services/audio-service.js';
+import { uploadChatAudio, createChatAttachment } from './services/media-service.js';
 
 const app = document.querySelector('#app');
 let authReady = false;
 let audioStopRequested = false;
+let pendingAudioBlob = null;
 
 const PUBLIC_ROUTES = new Set(['/', '/login', '/signup']);
 const PROTECTED_ROUTES = new Set(['/projects', '/conversations', '/preview', '/github', '/supabase', '/settings']);
@@ -178,7 +180,7 @@ async function submitChat(form, audioBlob = null) {
   const displayText = text || 'Mensagem de áudio';
   const audioUrl = audioBlob ? URL.createObjectURL(audioBlob) : null;
   const userMessage = {
-    id: 'message-' + Date.now(),
+    id: crypto.randomUUID(),
     role: 'user',
     text: displayText,
     audioUrl,
@@ -186,6 +188,8 @@ async function submitChat(form, audioBlob = null) {
   };
   addMessage(userMessage);
   input.value = '';
+  pendingAudioBlob = null;
+  updateState({ audioReady: false, audioStatus: '' });
   updateState({ isProcessing: true });
 
   try {
@@ -208,7 +212,7 @@ async function submitChat(form, audioBlob = null) {
   try {
     const reply = await requestAssistantReply(text || 'Entenda a mensagem de áudio do usuário e execute a solicitação.', history, audioData);
     const assistantMessage = {
-      id: 'message-' + Date.now() + '-reply',
+      id: crypto.randomUUID(),
       role: 'assistant',
       text: reply,
       time: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date()),
@@ -220,14 +224,35 @@ async function submitChat(form, audioBlob = null) {
   } catch (error) {
     const errorMessage = 'Não consegui falar com a IA agora: ' + (error?.message || 'erro desconhecido');
     addMessage({
-      id: 'message-' + Date.now() + '-error',
+      id: crypto.randomUUID(),
       role: 'assistant',
       text: errorMessage,
       time: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date()),
     });
-    await saveChatMessage(workspace.id, 'assistant', errorMessage).catch(() => null);
+    await saveChatMessage(workspace.id, 'assistant', errorMessage, { id: crypto.randomUUID() }).catch(() => null);
   } finally {
-    updateState({ isProcessing: false });
+    updateState({ isProcessing: false, audioReady: false, audioStatus: '' });
+  }
+}
+
+async function toggleAudioRecording() {
+  const status = document.querySelector('#audio-status');
+  try {
+    if (isRecording()) {
+      updateState({ audioStatus: 'Finalizando gravação...' });
+      stopAudioRecording();
+      return;
+    }
+    pendingAudioBlob = null;
+    updateState({ audioReady: false, audioStatus: 'Gravando... toca novamente no microfone para terminar.' });
+    await startAudioRecording((blob) => {
+      pendingAudioBlob = blob;
+      updateState({ audioReady: true, audioStatus: 'Áudio pronto. Confere e toca em enviar.' });
+    });
+  } catch (error) {
+    pendingAudioBlob = null;
+    updateState({ audioReady: false, audioStatus: '' });
+    showToast(error?.message || 'Não foi possível iniciar a gravação.', 'info');
   }
 }
 
@@ -576,7 +601,7 @@ document.addEventListener('submit', (event) => {
   }
   if (form.matches('[data-form="chat"]')) {
     event.preventDefault();
-    submitChat(form);
+    submitChat(form, pendingAudioBlob);
   }
   if (form.matches('#new-project-form')) {
     event.preventDefault();
