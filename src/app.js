@@ -23,9 +23,10 @@ import { transcribeAudio } from './services/transcription-service.js';
 
 const app = document.querySelector('#app');
 let authReady = false;
-let audioStopRequested = false;
 let pendingAudioBlob = null;
 let pendingAudioTranscript = '';
+let audioTimerInterval = null;
+let audioStartedAt = 0;
 
 const PUBLIC_ROUTES = new Set(['/', '/login', '/signup']);
 const PROTECTED_ROUTES = new Set(['/projects', '/conversations', '/preview', '/github', '/supabase', '/settings']);
@@ -188,7 +189,8 @@ async function submitChat(form, audioBlob = null) {
   addMessage(userMessage);
   input.value = '';
   pendingAudioBlob = null;
-  updateState({ audioReady: false, audioStatus: '' });
+  stopAudioTimer();
+  updateState({ audioMode: 'idle', audioReady: false, audioStatus: '', audioTranscript: '', audioElapsedMs: 0 });
   updateState({ isProcessing: true });
 
   try {
@@ -222,78 +224,74 @@ async function submitChat(form, audioBlob = null) {
     });
     await saveChatMessage(workspace.id, 'assistant', errorMessage, { id: errorMessageId }).catch(() => null);
   } finally {
-    updateState({ isProcessing: false, audioReady: false, audioStatus: '' });
+    stopAudioTimer();
+    updateState({ isProcessing: false, audioMode: 'idle', audioReady: false, audioStatus: '', audioTranscript: '', audioElapsedMs: 0 });
   }
 }
 
-function drawAudioLevel(level) {
-  const canvas = document.querySelector('#audio-visualizer');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const width = canvas.clientWidth || 280;
-  const height = canvas.clientHeight || 42;
-  const dpr = window.devicePixelRatio || 1;
-  if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
-    canvas.width = Math.round(width * dpr);
-    canvas.height = Math.round(height * dpr);
-  }
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, width, height);
-  const bars = 42;
-  const gap = 3;
-  const barWidth = Math.max(2, (width - gap * (bars - 1)) / bars);
-  for (let i = 0; i < bars; i += 1) {
-    const distance = Math.abs(i - (bars - 1) / 2) / ((bars - 1) / 2);
-    const wave = Math.max(0.08, level * (1 - distance * 0.55));
-    const h = Math.max(3, height * wave * (0.7 + Math.sin(i * 1.8 + level * 8) * 0.18));
-    const x = i * (barWidth + gap);
-    const y = (height - h) / 2;
-    ctx.fillStyle = '#a293ff';
-    ctx.beginPath();
-    ctx.roundRect(x, y, barWidth, h, barWidth / 2);
-    ctx.fill();
+function updateAudioWaveform(level) {
+  const waveform = document.querySelector('#audio-waveform');
+  if (waveform) waveform.style.setProperty('--audio-level', String(Math.max(0.08, Math.min(1, level))));
+}
+function updateAudioTimer() {
+  const elapsed = Math.max(0, Date.now() - audioStartedAt);
+  const timer = document.querySelector('#audio-timer');
+  if (timer) {
+    const seconds = Math.floor(elapsed / 1000);
+    timer.textContent = String(Math.floor(seconds / 60)).padStart(2, '0') + ':' + String(seconds % 60).padStart(2, '0');
   }
 }
-
+function startAudioTimer() {
+  window.clearInterval(audioTimerInterval);
+  audioStartedAt = Date.now();
+  audioTimerInterval = window.setInterval(updateAudioTimer, 250);
+}
+function stopAudioTimer() {
+  window.clearInterval(audioTimerInterval);
+  audioTimerInterval = null;
+}
 function clearAudioDraft() {
+  stopAudioTimer();
   pendingAudioBlob = null;
   pendingAudioTranscript = '';
-  updateState({ audioReady: false, audioStatus: '', audioTranscript: '', audioLevel: 0 });
+  updateState({ audioMode: 'idle', audioReady: false, audioStatus: '', audioTranscript: '', audioElapsedMs: 0 });
 }
-
 async function confirmAudioDraft() {
-  if (!pendingAudioBlob || getState().audioTranscribing) return;
-  updateState({ audioTranscribing: true, audioStatus: 'Transcrevendo o que você falou...' });
+  if (!pendingAudioBlob || getState().audioMode === 'transcribing') return;
+  updateState({ audioMode: 'transcribing', audioStatus: 'Transcrevendo...' });
   try {
     const transcript = await transcribeAudio(pendingAudioBlob);
     if (!transcript) throw new Error('Não foi possível obter uma transcrição.');
     pendingAudioTranscript = transcript;
+    pendingAudioBlob = null;
+    updateState({ audioMode: 'idle', audioReady: false, audioTranscribing: false, audioTranscript: transcript, audioStatus: 'Transcrição pronta.' });
     const input = document.querySelector('#chat-input');
     if (input) {
       input.value = transcript;
       input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
     }
-    pendingAudioBlob = null;
-    updateState({ audioReady: false, audioTranscribing: false, audioTranscript: transcript, audioStatus: 'Transcrição pronta. Revise e toque em enviar.' });
   } catch (error) {
-    updateState({ audioTranscribing: false, audioStatus: error?.message || 'Não foi possível transcrever o áudio.' });
+    updateState({ audioMode: 'review', audioTranscribing: false, audioStatus: error?.message || 'Não foi possível transcrever o áudio.' });
+    showToast(error?.message || 'Não foi possível transcrever o áudio.', 'info');
   }
 }
-
 async function toggleAudioRecording() {
   try {
     if (isRecording()) {
-      updateState({ audioStatus: 'Finalizando gravação...' });
+      updateState({ audioStatus: 'Finalizando...' });
       stopAudioRecording();
       return;
     }
     clearAudioDraft();
-    updateState({ audioStatus: 'Gravando... fale normalmente.' });
+    updateState({ audioMode: 'recording', audioStatus: 'Gravando...' });
+    startAudioTimer();
     await startAudioRecording({
-      onLevel: drawAudioLevel,
+      onLevel: updateAudioWaveform,
       onComplete: (blob) => {
+        stopAudioTimer();
         pendingAudioBlob = blob;
-        updateState({ audioReady: true, audioStatus: 'Áudio gravado. Escolha OK para transcrever ou recusar para gravar novamente.', audioLevel: 0 });
+        updateState({ audioMode: 'review', audioReady: true, audioStatus: 'Mensagem pronta.', audioElapsedMs: Math.max(0, Date.now() - audioStartedAt) });
       },
     });
   } catch (error) {
@@ -624,8 +622,9 @@ document.addEventListener('click', async (event) => {
   }
   if (action === 'show-help') showDialog({ title: 'Este é o início.', body: '<p class="dialog-copy">A DevIA agora possui cadastro e login reais através do Supabase Auth. O próximo passo será conectar o GitHub por workspace.</p>', confirmLabel: 'Entendi' });
   if (action === 'toggle-audio') toggleAudioRecording();
+  if (action === 'stop-audio') stopAudioRecording();
   if (action === 'confirm-audio') confirmAudioDraft();
-  if (action === 'reject-audio') clearAudioDraft();
+  if (action === 'cancel-audio') clearAudioDraft();
   if (action === 'show-chat-info') showDialog({ title: 'Contexto da conversa', body: '<p class="dialog-copy">Esta conversa usa o Gemini através da Edge Function segura da DevIA. O áudio é transcrito com segurança antes de ser enviado como texto ao agente, e as chaves da IA permanecem protegidas no Supabase.</p>', confirmLabel: 'Entendi' });
 });
 
