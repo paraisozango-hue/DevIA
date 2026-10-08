@@ -14,5 +14,6 @@ export const appConfig = Object.freeze({
   },
   ai: {
     chatUrl: 'https://reajamnjltasockpqkrk.supabase.co/functions/v1/ai-chat',
+    transcribeUrl: 'https://reajamnjltasockpqkrk.supabase.co/functions/v1/ai-transcribe',
   },
 });
