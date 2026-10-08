@@ -624,6 +624,8 @@ document.addEventListener('click', async (event) => {
   }
   if (action === 'show-help') showDialog({ title: 'Este é o início.', body: '<p class="dialog-copy">A DevIA agora possui cadastro e login reais através do Supabase Auth. O próximo passo será conectar o GitHub por workspace.</p>', confirmLabel: 'Entendi' });
   if (action === 'toggle-audio') toggleAudioRecording();
+  if (action === 'confirm-audio') confirmAudioDraft();
+  if (action === 'reject-audio') clearAudioDraft();
   if (action === 'show-chat-info') showDialog({ title: 'Contexto da conversa', body: '<p class="dialog-copy">Esta conversa usa o Gemini através da Edge Function segura da DevIA. Texto e áudio passam pelo mesmo agente, e a chave da IA permanece protegida no Supabase.</p>', confirmLabel: 'Entendi' });
 });
 
