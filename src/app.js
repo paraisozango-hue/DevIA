@@ -17,8 +17,7 @@ import { getSession, signIn, signUp, signOut, createInitialWorkspace, getCurrent
 import { showDialog, showToast, icon, escapeHtml } from './components/ui.js';
 import { appConfig } from './config.js';
 import { getGithubPreviewRepositories, prepareGithubPreview, savePreviewSession } from './services/preview-service.js';
-import { startAudioRecording, stopAudioRecording, isRecording, audioBlobToBase64 } from './services/audio-service.js';
-import { uploadChatAudio, createChatAttachment } from './services/media-service.js';
+import { startAudioRecording, stopAudioRecording, isRecording } from './services/audio-service.js';
 import { transcribeAudio } from './services/transcription-service.js';
 
 const app = document.querySelector('#app');
@@ -188,7 +187,8 @@ async function submitChat(form, audioBlob = null) {
   addMessage(userMessage);
   input.value = '';
   pendingAudioBlob = null;
-  updateState({ audioReady: false, audioStatus: '' });
+  pendingAudioTranscript = '';
+  updateState({ audioReady: false, audioStatus: '', audioTranscript: '' });
   updateState({ isProcessing: true });
 
   try {
@@ -293,7 +293,7 @@ async function toggleAudioRecording() {
       onLevel: drawAudioLevel,
       onComplete: (blob) => {
         pendingAudioBlob = blob;
-        updateState({ audioReady: true, audioStatus: 'Áudio gravado. Escolha OK para transcrever ou recusar para gravar novamente.', audioLevel: 0 });
+        updateState({ audioReady: true, audioStatus: 'Áudio gravado. Toque em OK para transcrever ou X para gravar novamente.', audioLevel: 0 });
       },
     });
   } catch (error) {
