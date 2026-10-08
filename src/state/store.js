@@ -4,6 +4,8 @@ const initialState = {
   isProcessing: false,
   audioReady: false,
   audioStatus: '',
+  audioReady: false,
+  audioStatus: '',
   activeProjectId: 'orbit',
   projects: [
     { id: 'orbit', name: 'Orbit Commerce', description: 'Loja virtual headless para marcas independentes.', status: 'Em andamento', repository: 'acme/orbit-commerce', updatedAt: 'há 2 horas', color: 'violet' },
