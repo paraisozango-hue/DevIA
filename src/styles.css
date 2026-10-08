@@ -536,6 +536,11 @@ button { color: inherit; }
 
 .chat-composer__actions { display: flex; align-items: center; gap: 6px; }
 .voice-button { width: 30px; height: 30px; padding: 0; }
+.audio-capture-panel { display: grid; gap: 9px; margin-top: 9px; padding: 10px; border: 1px solid rgba(162,147,255,.18); border-radius: 12px; background: rgba(162,147,255,.045); }
+.audio-visualizer { display: block; width: 100%; height: 42px; border-radius: 8px; background: rgba(255,255,255,.018); }
+.audio-capture-panel__status { color: #b8b0d9; font-size: 10px; line-height: 1.45; }
+.audio-capture-panel__loading { color: #aaa1ff; font-size: 10px; font-weight: 650; }
+.audio-capture-panel__actions { display: flex; justify-content: flex-end; gap: 7px; }
 .voice-button--recording { color: #f0a3ab; border-color: rgba(240,163,171,.35); background: rgba(240,163,171,.08); }
 .chat-audio-message { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 7px; }
 .chat-audio-message audio { grid-column: 1 / -1; width: min(280px, 100%); height: 30px; }
